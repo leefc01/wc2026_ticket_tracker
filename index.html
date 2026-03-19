@@ -9,7 +9,7 @@
 
 <!--
 =============================================================================
-  FIFA WORLD CUP 2026 — TICKET INTELLIGENCE  v11
+  FIFA WORLD CUP 2026 — TICKET INTELLIGENCE  v12
   Built with Claude (Anthropic) · March 2026
 =============================================================================
 
@@ -161,11 +161,21 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
 .rc-hint{font-size:11px;color:var(--color-text-tertiary);line-height:1.6;}
 /* Signal context card — rendered before each AI result to show which signals were applied */
 .sig-ctx{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:8px 12px;margin-bottom:8px;border-left:2px solid #378ADD;}
-.sig-ctx-lbl{font-size:10px;color:var(--color-text-secondary);letter-spacing:.4px;margin-bottom:6px;text-transform:uppercase;}
+.sig-ctx-lbl{font-size:10px;color:var(--color-text-secondary);letter-spacing:.4px;text-transform:uppercase;}
 .sig-chips{display:flex;gap:5px;flex-wrap:wrap;}
 .sig-chip{font-size:10px;padding:2px 7px;border-radius:4px;background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);color:var(--color-text-secondary);}
 .sig-chip.high{border-color:#378ADD;color:#378ADD;}
 .sig-chip.intent{border-color:#1d9e75;color:#1d9e75;}
+/* Preview card — dashed border distinguishes from post-result card */
+.sig-ctx.preview{border-left-color:var(--color-border-secondary);border-left-style:dashed;opacity:.9;}
+/* Header row inside signal card — label left, adjust-weights link right */
+.sig-ctx-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+/* "adjust weights ↑" link inside preview card — opens Signal Weights panel */
+.sig-ctx-adj{font-size:10px;color:var(--color-text-tertiary);cursor:pointer;text-decoration:underline;white-space:nowrap;background:none;border:none;padding:0;font-family:var(--font-mono);}
+.sig-ctx-adj:hover{color:var(--color-text-secondary);}
+/* Preview slot — between ai-output and ai-actions, hidden until hover */
+.ai-preview{display:none;margin-top:10px;}
+.ai-preview.visible{display:block;}
 .alert-tabs{display:flex;gap:6px;}
 .alert-tab{font-size:11px;font-family:var(--font-mono);padding:3px 10px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);cursor:pointer;background:transparent;color:var(--color-text-secondary);}
 .alert-tab.active{background:var(--color-text-primary);color:var(--color-background-primary);}
@@ -255,7 +265,7 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
   <div class="header-row">
     <div>
       <div class="header-title">FIFA World Cup 2026 — Ticket Intelligence</div>
-      <div class="header-sub">TRACKER + SCENARIOS + PORTFOLIO + AI &nbsp;·&nbsp; 16 HOST CITIES &nbsp;·&nbsp; JUN 11 2026</div>
+      <div class="header-sub">TRACKER + SCENARIOS + PORTFOLIO + AI &nbsp;·&nbsp; v12 &nbsp;·&nbsp; 16 HOST CITIES &nbsp;·&nbsp; JUN 11 2026</div>
     </div>
     <button class="notif-btn" onclick="toggleTray()" id="notifBtn">
       Alerts<span class="notif-badge" id="notifBadge" style="display:none">0</span>
@@ -477,10 +487,11 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
     </div>
 
     <!-- SIGNAL WEIGHTS — context-aware injection.
-         Eight signals configurable by user. SIGNAL_CONTEXTS routes only the relevant
-         subset to each analysis type. renderSignalCtx() makes injection visible in the UI.
+         SIGNAL_CONTEXTS routes each analysis type to its relevant signal subset.
+         Hovering AI buttons previews which signals apply before any API call.
+         "adjust weights ↑" link in preview opens this panel directly.
          Buyer Intent is a binary toggle that reframes all four analysis types. -->
-    <div class="coll">
+    <div class="coll" id="rc-coll">
       <div class="coll-hdr" onclick="toggleColl('rc')">
         <span class="coll-lbl">SIGNAL WEIGHTS — configure AI analysis priorities</span>
         <div class="coll-right"><span class="coll-tog" id="rc-tog">▼ expand</span></div>
@@ -514,17 +525,18 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
           <div class="rc-item"><label for="w-budget">BUDGET FLEXIBILITY</label>
             <select id="w-budget"><option>Low</option><option>Medium</option><option selected>High</option></select></div>
         </div>
-        <div class="rc-hint">Each AI analysis receives only the signals relevant to its reasoning task. Buyer Intent applies to all analyses and changes the framing of every recommendation. Results display below in the AI panel.</div>
+        <div class="rc-hint">Each AI analysis receives only the signals relevant to its reasoning task. Buyer Intent applies to all analyses. Hover any AI button below to preview which signals will be applied before calling the API.</div>
       </div>
     </div>
 
     <!-- AI PURCHASE ANALYST
+         Hover any button to see a signal preview before clicking (no API call).
          Analyze ↗        — all 8 signals, two-call RAG pipeline
-         Best value ↗     — bestValue signals (bracket risk, travel, rivalry, budget, intent)
-         Resale risk ↗    — resaleRisk signals (bracket risk, travel, liquidity, trend, intent)
-         Simulation ↗     — simulation signals (trend, days, bracket, intent)
-         Scenario risk ↗  — resaleRisk signals
-         All buttons display results directly in this panel with a signal context card. -->
+         Best value ↗     — bracket risk, travel, rivalry, budget, intent
+         Resale risk ↗    — bracket risk, travel, liquidity, price trend, intent
+         Simulation ↗     — price trend, days remaining, bracket risk, intent
+         Scenario risk ↗  — same as resale risk
+         All results display in #ai-output with a signal context card. -->
     <div class="ai-panel">
       <div style="font-size:11px;color:var(--color-text-secondary);letter-spacing:.4px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">
         <span><span class="ai-dot"></span>AI PURCHASE ANALYST</span>
@@ -533,10 +545,19 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
       <div id="ai-output">
         <span class="ai-placeholder">Select a match and click Analyze for a RAG-grounded, signal-weighted buy recommendation.</span>
       </div>
+      <!-- Signal preview slot — populated on button hover, cleared on mouseout.
+           Sits between output and buttons so existing results are never disturbed. -->
+      <div class="ai-preview" id="ai-preview"></div>
       <div class="ai-actions">
-        <button class="ai-btn primary" id="analyze-btn" onclick="runAnalysis()">Analyze ↗</button>
-        <button class="ai-btn" id="best-value-btn" onclick="askBestValue()">Best value ↗</button>
-        <button class="ai-btn" id="resale-risk-btn" onclick="askResaleRisk()">Resale risk ↗</button>
+        <button class="ai-btn primary" id="analyze-btn"
+          onmouseenter="showPreview('analyze')" onmouseleave="hidePreview()"
+          onclick="runAnalysis()">Analyze ↗</button>
+        <button class="ai-btn" id="best-value-btn"
+          onmouseenter="showPreview('bestValue')" onmouseleave="hidePreview()"
+          onclick="askBestValue()">Best value ↗</button>
+        <button class="ai-btn" id="resale-risk-btn"
+          onmouseenter="showPreview('resaleRisk')" onmouseleave="hidePreview()"
+          onclick="askResaleRisk()">Resale risk ↗</button>
       </div>
     </div>
 
@@ -687,9 +708,17 @@ function getMetrics(m){
 
 /* =============================================================================
    SIGNAL WEIGHTS — context-aware injection
-   SIGNAL_CONTEXTS: which signals each analysis type receives.
-   buildSignalContext(): serializes relevant subset into prompt text.
-   renderSignalCtx(): returns HTML card shown before each AI result.
+
+   SIGNAL_CONTEXTS     — maps each analysis type to its relevant signal keys
+   SIGNAL_LABELS       — human-readable display names for each key
+   getWeights()        — reads current values from all weight controls
+   buildSignalContext() — serializes relevant subset into prompt text
+   buildChips()        — shared chip builder for both card variants
+   renderSignalCtx()   — post-result card (solid blue left border)
+   renderPreviewCtx()  — hover preview card (dashed border, adjust-weights link)
+   showPreview()       — populates #ai-preview on button mouseenter
+   hidePreview()       — clears #ai-preview on button mouseleave
+   openSignalWeights() — opens collapsible and scrolls to it
    ============================================================================= */
 
 const SIGNAL_CONTEXTS={
@@ -719,25 +748,55 @@ function getWeights(){
   };
 }
 
-/* Serializes relevant signals into prompt text for the given analysis type */
 function buildSignalContext(analysisType){
-  const w=getWeights();
-  const keys=SIGNAL_CONTEXTS[analysisType]||[];
+  const w=getWeights(),keys=SIGNAL_CONTEXTS[analysisType]||[];
   return`User-configured signal priorities (${analysisType} analysis):\n${keys.map(k=>`- ${SIGNAL_LABELS[k]}: ${w[k]}`).join('\n')}`;
 }
 
-/* Returns HTML card showing which signals were applied and at what weight.
-   Rendered before each AI result so the user can see exactly what was injected.
-   High-priority signals get a blue accent. Buyer intent gets a green accent. */
-function renderSignalCtx(analysisType){
-  const w=getWeights();
-  const keys=SIGNAL_CONTEXTS[analysisType]||[];
-  const chips=keys.map(k=>{
-    const val=w[k];
-    const cls=k==='buyerIntent'?'intent':val==='High'?'high':'';
+/* Shared chip builder — used by both post-result and preview cards */
+function buildChips(analysisType){
+  const w=getWeights(),keys=SIGNAL_CONTEXTS[analysisType]||[];
+  return keys.map(k=>{
+    const val=w[k],cls=k==='buyerIntent'?'intent':val==='High'?'high':'';
     return`<span class="sig-chip ${cls}">${SIGNAL_LABELS[k]}: ${val}</span>`;
   }).join('');
-  return`<div class="sig-ctx"><div class="sig-ctx-lbl">Signals applied · ${analysisType}</div><div class="sig-chips">${chips}</div></div>`;
+}
+
+/* Post-result card — solid blue left border, rendered after an AI result completes */
+function renderSignalCtx(analysisType){
+  return`<div class="sig-ctx"><div class="sig-ctx-hdr"><span class="sig-ctx-lbl">Signals applied · ${analysisType}</span></div><div class="sig-chips">${buildChips(analysisType)}</div></div>`;
+}
+
+/* Preview card — dashed border, shown on button hover BEFORE an API call.
+   Includes "adjust weights ↑" link that opens the Signal Weights panel. */
+function renderPreviewCtx(analysisType){
+  const labels={analyze:'Analyze',bestValue:'Best value',resaleRisk:'Resale risk'};
+  const label=labels[analysisType]||analysisType;
+  return`<div class="sig-ctx preview"><div class="sig-ctx-hdr"><span class="sig-ctx-lbl">Signals if you click · ${label}</span><button class="sig-ctx-adj" onclick="openSignalWeights()">adjust weights ↑</button></div><div class="sig-chips">${buildChips(analysisType)}</div></div>`;
+}
+
+/* Populate #ai-preview on button mouseenter */
+function showPreview(analysisType){
+  const el=document.getElementById('ai-preview');
+  el.innerHTML=renderPreviewCtx(analysisType);
+  el.classList.add('visible');
+}
+
+/* Clear #ai-preview on button mouseleave */
+function hidePreview(){
+  const el=document.getElementById('ai-preview');
+  el.classList.remove('visible');
+  el.innerHTML='';
+}
+
+/* Open Signal Weights collapsible and smooth-scroll to it */
+function openSignalWeights(){
+  if(!collState.rc){
+    collState.rc=true;
+    document.getElementById('rc-body').style.display='block';
+    document.getElementById('rc-tog').textContent='▲ collapse';
+  }
+  document.getElementById('rc-coll').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 /* Buyer intent toggle — binary, reframes all four analysis types */
@@ -1240,7 +1299,8 @@ What real-world signals indicate we're moving toward the worst case? Frame for b
 
 /* Main analysis — RAG pipeline: retrieval → grounded analysis, all 8 signals */
 async function runAnalysis(){
-  const btn=document.getElementById('analyze-btn'),out=document.getElementById('ai-output');
+  hidePreview(); // clear preview before result renders
+  const out=document.getElementById('ai-output');
   const met=getMetrics(selectedMatch),days=daysUntil(selectedMatch.dayOffset);
   const cat=selectedCat==='All'?'Cat 3':selectedCat;
   const rp=resalePriceFor(selectedMatch,cat),fv=faceValFor(selectedMatch,cat);
@@ -1293,6 +1353,7 @@ function toggleRagCtx(el){const b=el.nextElementSibling;const open=b.style.displ
 
 /* Best Value — bestValue signal context, displays in AI panel */
 async function askBestValue(){
+  hidePreview();
   const out=document.getElementById('ai-output');
   const top5=[...ALL_MATCHES].sort((a,b)=>resalePrice(a)-resalePrice(b)).slice(0,5);
   const signals=buildSignalContext('bestValue');
@@ -1313,6 +1374,7 @@ Which match offers the best value and why? Frame the analysis for the buyer's in
 
 /* Resale Risk — resaleRisk signal context, displays in AI panel */
 async function askResaleRisk(){
+  hidePreview();
   const out=document.getElementById('ai-output');
   const late=ALL_MATCHES.filter(m=>m.stage==='Final'||m.stage==='Semifinal');
   const signals=buildSignalContext('resaleRisk');
