@@ -9,7 +9,7 @@
 
 <!--
 =============================================================================
-  FIFA WORLD CUP 2026 — TICKET INTELLIGENCE  v12
+  FIFA WORLD CUP 2026 — TICKET INTELLIGENCE  v13
   Built with Claude (Anthropic) · March 2026
 =============================================================================
 
@@ -265,7 +265,7 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
   <div class="header-row">
     <div>
       <div class="header-title">FIFA World Cup 2026 — Ticket Intelligence</div>
-      <div class="header-sub">TRACKER + SCENARIOS + PORTFOLIO + AI &nbsp;·&nbsp; v12 &nbsp;·&nbsp; 16 HOST CITIES &nbsp;·&nbsp; JUN 11 2026</div>
+      <div class="header-sub">TRACKER + SCENARIOS + PORTFOLIO + AI &nbsp;·&nbsp; v13 &nbsp;·&nbsp; 16 HOST CITIES &nbsp;·&nbsp; JUN 11 2026</div>
     </div>
     <button class="notif-btn" onclick="toggleTray()" id="notifBtn">
       Alerts<span class="notif-badge" id="notifBadge" style="display:none">0</span>
@@ -525,7 +525,7 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
           <div class="rc-item"><label for="w-budget">BUDGET FLEXIBILITY</label>
             <select id="w-budget"><option>Low</option><option>Medium</option><option selected>High</option></select></div>
         </div>
-        <div class="rc-hint">Each AI analysis receives only the signals relevant to its reasoning task. Buyer Intent applies to all analyses. Hover any AI button below to preview which signals will be applied before calling the API.</div>
+        <div class="rc-hint">Each AI analysis receives only the signals relevant to its reasoning task. Buyer Intent applies to all analyses. The preview below shows which signals will be applied — hover different buttons to compare, or click "adjust weights ↑" to change priorities.</div>
       </div>
     </div>
 
@@ -545,8 +545,9 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
       <div id="ai-output">
         <span class="ai-placeholder">Select a match and click Analyze for a RAG-grounded, signal-weighted buy recommendation.</span>
       </div>
-      <!-- Signal preview slot — populated on button hover, cleared on mouseout.
-           Sits between output and buttons so existing results are never disturbed. -->
+      <!-- Signal preview slot — shows analyze signals by default on load.
+           Updates on button hover; returns to analyze default on mouseout.
+           Fully hidden by clearPreview() before any result renders. -->
       <div class="ai-preview" id="ai-preview"></div>
       <div class="ai-actions">
         <button class="ai-btn primary" id="analyze-btn"
@@ -775,15 +776,18 @@ function renderPreviewCtx(analysisType){
   return`<div class="sig-ctx preview"><div class="sig-ctx-hdr"><span class="sig-ctx-lbl">Signals if you click · ${label}</span><button class="sig-ctx-adj" onclick="openSignalWeights()">adjust weights ↑</button></div><div class="sig-chips">${buildChips(analysisType)}</div></div>`;
 }
 
-/* Populate #ai-preview on button mouseenter */
+/* Populate #ai-preview with the preview card for the given analysis type */
 function showPreview(analysisType){
   const el=document.getElementById('ai-preview');
   el.innerHTML=renderPreviewCtx(analysisType);
   el.classList.add('visible');
 }
 
-/* Clear #ai-preview on button mouseleave */
-function hidePreview(){
+/* On mouseleave, return to the default analyze preview rather than hiding */
+function hidePreview(){showPreview('analyze');}
+
+/* Fully hide preview slot before a result renders — called by AI handlers */
+function clearPreview(){
   const el=document.getElementById('ai-preview');
   el.classList.remove('visible');
   el.innerHTML='';
@@ -1131,6 +1135,7 @@ function selectMatch(id){
   renderMatchList();renderAll();
   document.getElementById('ai-output').innerHTML='<span class="ai-placeholder">Click Analyze for a RAG-grounded recommendation, or open Simulation for forward price projection.</span>';
   if(collState.sim)renderSimChart();
+  showPreview('analyze'); // refresh default preview for new match context
 }
 
 /* =============================================================================
@@ -1278,6 +1283,7 @@ ${signals}
 
 /* Scenario risk — resaleRisk signal context, displays in AI panel */
 async function askScenarioRisk(){
+  clearPreview();
   const out=document.getElementById('ai-output');
   const days=daysUntil(selectedMatch.dayOffset),cr=resalePriceFor(selectedMatch,'Cat 3');
   const p=getSimParams(),baseP=projectScenario(cr,days,'base',p),pesP=projectScenario(cr,days,'pessimistic',p);
@@ -1299,7 +1305,7 @@ What real-world signals indicate we're moving toward the worst case? Frame for b
 
 /* Main analysis — RAG pipeline: retrieval → grounded analysis, all 8 signals */
 async function runAnalysis(){
-  hidePreview(); // clear preview before result renders
+  clearPreview(); // hide preview before result renders
   const out=document.getElementById('ai-output');
   const met=getMetrics(selectedMatch),days=daysUntil(selectedMatch.dayOffset);
   const cat=selectedCat==='All'?'Cat 3':selectedCat;
@@ -1353,7 +1359,7 @@ function toggleRagCtx(el){const b=el.nextElementSibling;const open=b.style.displ
 
 /* Best Value — bestValue signal context, displays in AI panel */
 async function askBestValue(){
-  hidePreview();
+  clearPreview();
   const out=document.getElementById('ai-output');
   const top5=[...ALL_MATCHES].sort((a,b)=>resalePrice(a)-resalePrice(b)).slice(0,5);
   const signals=buildSignalContext('bestValue');
@@ -1374,7 +1380,7 @@ Which match offers the best value and why? Frame the analysis for the buyer's in
 
 /* Resale Risk — resaleRisk signal context, displays in AI panel */
 async function askResaleRisk(){
-  hidePreview();
+  clearPreview();
   const out=document.getElementById('ai-output');
   const late=ALL_MATCHES.filter(m=>m.stage==='Final'||m.stage==='Semifinal');
   const signals=buildSignalContext('resaleRisk');
@@ -1402,6 +1408,7 @@ populateFilters();
 populateAlertMatchSel();
 applyFilters();
 selectMatch(ALL_MATCHES[0].id);
+showPreview('analyze'); // show default analyze preview on load
 renderAlertList();
 renderNotifTray();
 updatePermUI();

@@ -127,6 +127,13 @@ On Vercel, `callClaude()` auto-routes to `POST /api/analyze` instead of calling 
 
 ## Changelog
 
+**v13**
+- Signal preview card is now shown by default on load and on every match select — users see the Analyze signal context immediately without hovering
+- `hidePreview()` now returns to the default Analyze preview instead of hiding the slot — hovering away from a button restores the baseline state
+- `clearPreview()` added — fully hides the preview slot before any AI result renders, replacing the `hidePreview()` calls inside AI handlers
+- `showPreview('analyze')` called in `selectMatch()` so the preview refreshes with current match context on each selection
+- Updated rc-hint copy to describe the always-visible preview behavior
+
 **v12**
 - Signal preview on button hover — Analyze, Best Value, and Resale Risk buttons show a preview card with the signals that will be applied before any API call is made
 - Preview card uses a dashed border to distinguish from post-result cards; clears automatically on mouseout
