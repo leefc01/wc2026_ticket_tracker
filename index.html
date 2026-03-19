@@ -4,10 +4,12 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>FIFA World Cup 2026 — Ticket Intelligence</title>
+<!-- Suppress favicon 404 with inline data URI -->
+<link rel="icon" href="data:,">
 
 <!--
 =============================================================================
-  FIFA WORLD CUP 2026 — TICKET INTELLIGENCE  v10
+  FIFA WORLD CUP 2026 — TICKET INTELLIGENCE  v11
   Built with Claude (Anthropic) · March 2026
 =============================================================================
 
@@ -25,13 +27,16 @@
     3a: Embedded inference — callClaude() routes to:
         · Vercel: POST /api/analyze (key stays server-side)
         · Local:  direct Anthropic API call (key from input field)
-        Two sequential calls per Analyze: RAG retrieval → grounded analysis
-    3b: Conversational handoff — sendPrompt() in claude.ai,
-        clipboard copy in standalone
+        RAG pipeline: two sequential calls per Analyze
+        All 5 secondary AI buttons also route through callClaude()
+        and display results directly in the AI panel.
+    3b: Conversational handoff — sendPrompt() in claude.ai context
 
   SIGNAL WEIGHTS — context-aware injection:
-    Eight user-configurable signals. Each AI analysis type only receives
-    the subset of signals relevant to its reasoning task. See SIGNAL_CONTEXTS.
+    Eight user-configurable signals. SIGNAL_CONTEXTS defines which signals
+    each analysis type receives. buildSignalContext() serializes the relevant
+    subset into prompt text. renderSignalCtx() renders a visible card before
+    each AI result showing exactly which signals were applied.
 
   PRODUCTION UPGRADE PATH:
     1. Replace generatePrices() + buildMatches() with fetch('/api/matches')
@@ -128,8 +133,10 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
 .teams{font-weight:500;color:var(--color-text-primary);font-size:12px;}
 .meta{color:var(--color-text-secondary);margin-top:2px;}
 .price-tag{font-weight:500;font-size:12px;white-space:nowrap;color:#D85A30;}
-.star-btn{background:none;border:none;cursor:pointer;font-size:14px;padding:0 2px;opacity:.4;line-height:1;flex-shrink:0;margin-top:1px;}
-.star-btn.starred{opacity:1;}
+/* Star button — amber when starred, visible in light and dark mode */
+.star-btn{background:none;border:none;cursor:pointer;font-size:15px;padding:0 3px;color:var(--color-text-tertiary);line-height:1;flex-shrink:0;margin-top:1px;transition:color .15s;}
+.star-btn:hover{color:var(--color-text-secondary);}
+.star-btn.starred{color:#F5A623;}
 .no-matches{font-size:12px;color:var(--color-text-secondary);padding:12px;text-align:center;font-style:italic;}
 .coll{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:.875rem 1.25rem;margin-bottom:1rem;}
 .coll-hdr{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;}
@@ -152,6 +159,13 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
 .intent-btn.speculative.active{background:#378ADD;color:#fff;}
 .intent-desc{font-size:11px;color:var(--color-text-tertiary);flex:1;}
 .rc-hint{font-size:11px;color:var(--color-text-tertiary);line-height:1.6;}
+/* Signal context card — rendered before each AI result to show which signals were applied */
+.sig-ctx{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:8px 12px;margin-bottom:8px;border-left:2px solid #378ADD;}
+.sig-ctx-lbl{font-size:10px;color:var(--color-text-secondary);letter-spacing:.4px;margin-bottom:6px;text-transform:uppercase;}
+.sig-chips{display:flex;gap:5px;flex-wrap:wrap;}
+.sig-chip{font-size:10px;padding:2px 7px;border-radius:4px;background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);color:var(--color-text-secondary);}
+.sig-chip.high{border-color:#378ADD;color:#378ADD;}
+.sig-chip.intent{border-color:#1d9e75;color:#1d9e75;}
 .alert-tabs{display:flex;gap:6px;}
 .alert-tab{font-size:11px;font-family:var(--font-mono);padding:3px 10px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);cursor:pointer;background:transparent;color:var(--color-text-secondary);}
 .alert-tab.active{background:var(--color-text-primary);color:var(--color-background-primary);}
@@ -259,15 +273,16 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
 
   <div id="tracker-view">
 
-    <!-- Browser notification permission bar. Works on HTTPS (Vercel). May be sandboxed in claude.ai iframe. -->
+    <!-- Browser notification permission bar. Works on HTTPS (Vercel).
+         May be sandboxed in claude.ai iframe. -->
     <div class="perm-bar" id="permBar">
       <span class="perm-dot unknown" id="permDot"></span>
       <span class="perm-text" id="permText"><strong>Browser notifications</strong> — enable to receive alerts in the background</span>
       <button class="perm-btn" id="permBtn" onclick="requestPermission()">Enable</button>
     </div>
 
-    <!-- Fired alert tray — hidden until alerts trigger. Each item has an Analyze button
-         that immediately runs the full RAG analysis for that match. -->
+    <!-- Fired alert tray — hidden until alerts trigger.
+         Analyze button immediately runs full RAG analysis for that match. -->
     <div class="notif-tray" id="notifTray">
       <div class="panel-label">
         <span>FIRED ALERTS</span>
@@ -277,24 +292,25 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
     </div>
 
     <!-- API key input — for local/standalone use.
-         On Vercel, callClaude() auto-routes to /api/analyze proxy (no key needed in UI). -->
+         On Vercel, callClaude() auto-routes to /api/analyze proxy (no key needed). -->
     <div class="api-key-row">
-      <input type="text" id="apiKey" placeholder="sk-ant-... (paste API key for local use — not needed on Vercel)"/>
-      <span class="key-hint">auto-proxied on Vercel · key field for local/demo use</span>
+      <label for="apiKey" style="font-size:11px;color:var(--color-text-tertiary);white-space:nowrap;">API KEY</label>
+      <input type="text" id="apiKey" placeholder="sk-ant-... (not needed on Vercel — auto-proxied)"/>
+      <span class="key-hint">local/demo use only</span>
     </div>
 
     <!-- Filters — all four compose simultaneously. Price filter anchors to Cat 3. -->
     <div class="top-bar">
       <div class="filter-row">
         <span class="filter-label">FILTER</span>
-        <select id="stageFilter" onchange="applyFilters()">
+        <select id="stageFilter" aria-label="Filter by stage" onchange="applyFilters()">
           <option value="">All stages</option>
           <option>Group Stage</option><option>Round of 16</option>
           <option>Quarterfinal</option><option>Semifinal</option><option>Final</option>
         </select>
-        <select id="stadiumFilter" onchange="applyFilters()"><option value="">All stadiums</option></select>
-        <select id="teamFilter" onchange="applyFilters()"><option value="">All teams</option></select>
-        <select id="priceFilter" onchange="applyFilters()">
+        <select id="stadiumFilter" aria-label="Filter by stadium" onchange="applyFilters()"><option value="">All stadiums</option></select>
+        <select id="teamFilter" aria-label="Filter by team" onchange="applyFilters()"><option value="">All teams</option></select>
+        <select id="priceFilter" aria-label="Filter by price range" onchange="applyFilters()">
           <option value="">Any price</option>
           <option value="under500">Under $500 (Cat 3)</option>
           <option value="500to1000">$500–$1,000 (Cat 3)</option>
@@ -320,13 +336,13 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
     <div class="metrics" id="metrics"></div>
 
     <div class="two-col">
+      <!-- Chart: All = 4 category lines. Single cat = resale curve + face value reference. -->
       <div class="panel">
         <div class="panel-label">
           <span id="chart-title">RESALE PRICE HISTORY</span>
           <span id="buy-signal" style="font-size:11px;padding:2px 8px;border-radius:var(--border-radius-md);"></span>
         </div>
         <div class="chart-wrap"><canvas id="priceChart"></canvas></div>
-        <!-- Legend shown only in All mode (4 lines need labels) -->
         <div class="chart-legend" id="chartLegend" style="display:none">
           <span class="chart-leg-item"><span class="chart-leg-line" style="background:#D85A30"></span>Cat 1</span>
           <span class="chart-leg-item"><span class="chart-leg-line" style="background:#BA7517"></span>Cat 2</span>
@@ -334,6 +350,8 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
           <span class="chart-leg-item"><span class="chart-leg-line" style="background:#378ADD"></span>Cat 4</span>
         </div>
       </div>
+      <!-- Match list — star (★) is amber when active, visible in dark mode.
+           Price shown is Cat 3 regardless of selected category (sort anchor). -->
       <div class="panel">
         <div class="panel-label">
           <span>MATCHES <span id="match-count" style="color:var(--color-text-primary);font-weight:500"></span></span>
@@ -343,8 +361,7 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
       </div>
     </div>
 
-    <!-- PRICE ALERTS — evaluates against Cat 3 for consistent benchmarking.
-         Conditions: resale below/above $, face value below $, 7-day % change, markup threshold. -->
+    <!-- PRICE ALERTS — evaluates against Cat 3 for consistent benchmarking. -->
     <div class="coll">
       <div class="coll-hdr" onclick="toggleColl('alerts')">
         <span class="coll-lbl">PRICE ALERTS</span>
@@ -364,11 +381,11 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
         </div>
         <div id="add-alert-view">
           <div class="alert-form-row">
-            <label>Match</label>
+            <label for="alertMatchSel">Match</label>
             <select class="alert-match-sel" id="alertMatchSel"></select>
           </div>
           <div class="alert-form-row">
-            <label>Condition</label>
+            <label for="alertCondition">Condition</label>
             <select id="alertCondition" style="flex:1;min-width:180px">
               <option value="below">Resale (Cat 3) drops below $</option>
               <option value="above">Resale (Cat 3) rises above $</option>
@@ -377,7 +394,8 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
               <option value="pct_rise">7-day rise exceeds %</option>
               <option value="markup_below">Markup drops below %</option>
             </select>
-            <input type="number" id="alertThreshold" value="300" min="0" step="10" style="width:80px"/>
+            <label for="alertThreshold" class="sr-only">Threshold value</label>
+            <input type="number" id="alertThreshold" value="300" min="0" step="10" style="width:80px" aria-label="Threshold value"/>
             <button class="alert-add-btn" onclick="addAlert()">+ Add</button>
           </div>
         </div>
@@ -394,8 +412,8 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
 
     <!-- SCENARIO SIMULATION — always uses Cat 3 as the pricing baseline.
          Growth rates: base=40%, optimistic=10%, pessimistic=75% over full period.
-         Team events and supply shocks apply multipliers. findOptimalBuyDay() identifies
-         the inflection point where 7-day growth exceeds 2.5%. -->
+         Team events and supply shocks apply multipliers.
+         findOptimalBuyDay() scans for the inflection point where 7-day growth exceeds 2.5%. -->
     <div class="coll">
       <div class="coll-hdr" onclick="toggleColl('sim')">
         <span class="coll-lbl">SCENARIO SIMULATION — forward price projection to match day</span>
@@ -403,17 +421,19 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
       </div>
       <div class="coll-body" id="sim-body" style="display:none">
         <div style="font-size:11px;color:var(--color-text-tertiary);margin-bottom:8px;">
-          Projections use Cat 3 as the pricing baseline. Signal weights for Price trend, Days remaining, Bracket position risk, and Buyer intent apply to the AI analysis of this simulation.
+          Projections use Cat 3 as the pricing baseline. Price trend, Days remaining, Bracket position risk, and Buyer intent signals apply to the AI analysis.
         </div>
         <div class="sim-config-grid">
-          <div class="sim-config-item"><label>TRAJECTORY</label>
+          <div class="sim-config-item">
+            <label for="sim-traj">TRAJECTORY</label>
             <select id="sim-traj" onchange="updateSim()">
               <option value="accelerating">Accelerating</option>
               <option value="linear" selected>Linear</option>
               <option value="plateauing">Plateauing</option>
             </select>
           </div>
-          <div class="sim-config-item"><label>TEAM EVENT</label>
+          <div class="sim-config-item">
+            <label for="sim-team">TEAM EVENT</label>
             <select id="sim-team" onchange="updateSim()">
               <option value="none">None</option>
               <option value="star_injury">Star player injured</option>
@@ -421,14 +441,16 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
               <option value="rivalry">Historic rivalry draw</option>
             </select>
           </div>
-          <div class="sim-config-item"><label>SUPPLY SHOCK</label>
+          <div class="sim-config-item">
+            <label for="sim-supply">SUPPLY SHOCK</label>
             <select id="sim-supply" onchange="updateSim()">
               <option value="none">None</option>
               <option value="inventory">Inventory reduction</option>
               <option value="release">FIFA releases tickets</option>
             </select>
           </div>
-          <div class="sim-config-item"><label>CONFIDENCE BAND</label>
+          <div class="sim-config-item">
+            <label for="sim-conf">CONFIDENCE BAND</label>
             <select id="sim-conf" onchange="updateSim()">
               <option value="70">70% interval</option>
               <option value="90" selected>90% interval</option>
@@ -449,22 +471,21 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
         <div class="sim-metrics" id="simMetrics"></div>
         <div class="ai-actions" style="margin-top:2px">
           <button class="ai-btn primary" id="sim-analyze-btn" onclick="analyzeSimulation()">Analyze simulation ↗</button>
-          <button class="ai-btn" onclick="askScenarioRisk()">Scenario risk ↗</button>
+          <button class="ai-btn" id="scenario-risk-btn" onclick="askScenarioRisk()">Scenario risk ↗</button>
         </div>
       </div>
     </div>
 
     <!-- SIGNAL WEIGHTS — context-aware injection.
-         Eight signals configurable by user. Each AI analysis type receives only the
-         subset relevant to its reasoning task (see SIGNAL_CONTEXTS in JS).
-         Buyer Intent is a binary toggle — changes the framing of all four analyses. -->
+         Eight signals configurable by user. SIGNAL_CONTEXTS routes only the relevant
+         subset to each analysis type. renderSignalCtx() makes injection visible in the UI.
+         Buyer Intent is a binary toggle that reframes all four analysis types. -->
     <div class="coll">
       <div class="coll-hdr" onclick="toggleColl('rc')">
         <span class="coll-lbl">SIGNAL WEIGHTS — configure AI analysis priorities</span>
         <div class="coll-right"><span class="coll-tog" id="rc-tog">▼ expand</span></div>
       </div>
       <div class="coll-body" id="rc-body" style="display:none">
-        <!-- Buyer intent toggle — binary, affects framing of all AI analyses -->
         <div class="intent-row">
           <span class="intent-lbl">BUYER INTENT</span>
           <div class="intent-toggle">
@@ -473,36 +494,37 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
           </div>
           <span class="intent-desc" id="intentDesc">Optimize for experience, certainty, and price lock-in</span>
         </div>
-        <!-- Row 1: price-movement signals (most relevant for Analyze + Simulation) -->
+        <!-- Row 1: price-movement signals (Analyze + Simulation) -->
         <div class="rc-grid">
-          <div class="rc-item"><label>PRICE TREND</label>
+          <div class="rc-item"><label for="w-trend">PRICE TREND</label>
             <select id="w-trend"><option>Low</option><option selected>Medium</option><option>High</option></select></div>
-          <div class="rc-item"><label>DAYS REMAINING</label>
+          <div class="rc-item"><label for="w-days">DAYS REMAINING</label>
             <select id="w-days"><option>Low</option><option>Medium</option><option selected>High</option></select></div>
-          <div class="rc-item"><label>BRACKET POSITION RISK</label>
+          <div class="rc-item"><label for="w-bracket">BRACKET POSITION RISK</label>
             <select id="w-bracket"><option>Low</option><option selected>Medium</option><option>High</option></select></div>
-          <div class="rc-item"><label>RESALE LIQUIDITY</label>
+          <div class="rc-item"><label for="w-liquidity">RESALE LIQUIDITY</label>
             <select id="w-liquidity"><option>Low</option><option selected>Medium</option><option>High</option></select></div>
         </div>
-        <!-- Row 2: experience/value signals (most relevant for Best Value + Resale Risk) -->
+        <!-- Row 2: experience/value signals (Best Value + Resale Risk) -->
         <div class="rc-grid-3">
-          <div class="rc-item"><label>FAN TRAVEL ACCESSIBILITY</label>
+          <div class="rc-item"><label for="w-travel">FAN TRAVEL ACCESSIBILITY</label>
             <select id="w-travel"><option>Low</option><option selected>Medium</option><option>High</option></select></div>
-          <div class="rc-item"><label>RIVALRY / ATMOSPHERE</label>
+          <div class="rc-item"><label for="w-rivalry">RIVALRY / ATMOSPHERE</label>
             <select id="w-rivalry"><option>Low</option><option selected>Medium</option><option>High</option></select></div>
-          <div class="rc-item"><label>BUDGET FLEXIBILITY</label>
+          <div class="rc-item"><label for="w-budget">BUDGET FLEXIBILITY</label>
             <select id="w-budget"><option>Low</option><option>Medium</option><option selected>High</option></select></div>
         </div>
-        <div class="rc-hint">Each AI analysis receives only the signals relevant to its reasoning task. Buyer Intent applies to all four analyses and changes the framing of every recommendation.</div>
+        <div class="rc-hint">Each AI analysis receives only the signals relevant to its reasoning task. Buyer Intent applies to all analyses and changes the framing of every recommendation. Results display below in the AI panel.</div>
       </div>
     </div>
 
     <!-- AI PURCHASE ANALYST
-         Analyze ↗ — receives all 8 signals (full context)
-         Simulation ↗ — receives: price trend, days remaining, bracket risk, buyer intent
-         Best value ↗ — receives: bracket risk, travel, rivalry, budget, buyer intent
-         Resale risk ↗ — receives: bracket risk, travel, liquidity, price trend, buyer intent
-         Scenario risk ↗ — same as resale risk -->
+         Analyze ↗        — all 8 signals, two-call RAG pipeline
+         Best value ↗     — bestValue signals (bracket risk, travel, rivalry, budget, intent)
+         Resale risk ↗    — resaleRisk signals (bracket risk, travel, liquidity, trend, intent)
+         Simulation ↗     — simulation signals (trend, days, bracket, intent)
+         Scenario risk ↗  — resaleRisk signals
+         All buttons display results directly in this panel with a signal context card. -->
     <div class="ai-panel">
       <div style="font-size:11px;color:var(--color-text-secondary);letter-spacing:.4px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">
         <span><span class="ai-dot"></span>AI PURCHASE ANALYST</span>
@@ -513,8 +535,8 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
       </div>
       <div class="ai-actions">
         <button class="ai-btn primary" id="analyze-btn" onclick="runAnalysis()">Analyze ↗</button>
-        <button class="ai-btn" onclick="askBestValue()">Best value ↗</button>
-        <button class="ai-btn" onclick="askResaleRisk()">Resale risk ↗</button>
+        <button class="ai-btn" id="best-value-btn" onclick="askBestValue()">Best value ↗</button>
+        <button class="ai-btn" id="resale-risk-btn" onclick="askResaleRisk()">Resale risk ↗</button>
       </div>
     </div>
 
@@ -542,14 +564,15 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
           <tbody id="port-tbody"></tbody>
         </table>
       </div>
+      <!-- Portfolio AI panel — results display here, not in clipboard -->
       <div class="panel">
         <div class="panel-label"><span><span class="ai-dot"></span>PORTFOLIO AI SUMMARY</span></div>
         <div id="port-ai-out">
           <span class="ai-placeholder">Click "Analyze portfolio" for a cross-match buy-priority ranking and risk assessment.</span>
         </div>
         <div class="ai-actions" style="margin-top:10px">
-          <button class="ai-btn primary" onclick="analyzePortfolio()">Analyze portfolio ↗</button>
-          <button class="ai-btn" onclick="askPortfolioRisk()">Risk breakdown ↗</button>
+          <button class="ai-btn primary" id="port-analyze-btn" onclick="analyzePortfolio()">Analyze portfolio ↗</button>
+          <button class="ai-btn" id="port-risk-btn" onclick="askPortfolioRisk()">Risk breakdown ↗</button>
         </div>
       </div>
     </div>
@@ -565,7 +588,7 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
    fetch('/api/matches') from a Playwright scraper backend.
    ============================================================================= */
 
-const STADIUMS=[{id:'metlife',name:'MetLife Stadium',city:'East Rutherford, NJ',capacity:82500},{id:'sofi',name:'SoFi Stadium',city:'Los Angeles, CA',capacity:70240},{id:'att',name:'AT&T Stadium',city:'Dallas, TX',capacity:80000},{id:'arrowhead',name:'Arrowhead Stadium',city:'Kansas City, MO',capacity:76416},{id:'levis',name:"Levi's Stadium",city:'San Jose, CA',capacity:68500},{id:'seattle',name:'Lumen Field',city:'Seattle, WA',capacity:69000},{id:'boston',name:'Gillette Stadium',city:'Boston, MA',capacity:65878},{id:'miami',name:'Hard Rock Stadium',city:'Miami, FL',capacity:64767},{id:'atlanta',name:'Mercedes-Benz Stadium',city:'Atlanta, GA',capacity:71000},{id:'vancouver',name:'BC Place',city:'Vancouver, BC',capacity:54500},{id:'toronto',name:'BMO Field',city:'Toronto, ON',capacity:30991},{id:'guadalajara',name:'Estadio Akron',city:'Guadalajara, MX',capacity:49850},{id:'cdmx',name:'Estadio Azteca',city:'Mexico City, MX',capacity:87523},{id:'monterrey',name:'Estadio BBVA',city:'Monterrey, MX',capacity:53500},{id:'nyc',name:'Yankee Stadium',city:'New York, NY',capacity:47309},{id:'philly',name:'Lincoln Financial Field',city:'Philadelphia, PA',capacity:69796}];
+const STADIUMS=[{id:'metlife',name:'MetLife Stadium',city:'East Rutherford, NJ'},{id:'sofi',name:'SoFi Stadium',city:'Los Angeles, CA'},{id:'att',name:'AT&T Stadium',city:'Dallas, TX'},{id:'arrowhead',name:'Arrowhead Stadium',city:'Kansas City, MO'},{id:'levis',name:"Levi's Stadium",city:'San Jose, CA'},{id:'seattle',name:'Lumen Field',city:'Seattle, WA'},{id:'boston',name:'Gillette Stadium',city:'Boston, MA'},{id:'miami',name:'Hard Rock Stadium',city:'Miami, FL'},{id:'atlanta',name:'Mercedes-Benz Stadium',city:'Atlanta, GA'},{id:'vancouver',name:'BC Place',city:'Vancouver, BC'},{id:'toronto',name:'BMO Field',city:'Toronto, ON'},{id:'guadalajara',name:'Estadio Akron',city:'Guadalajara, MX'},{id:'cdmx',name:'Estadio Azteca',city:'Mexico City, MX'},{id:'monterrey',name:'Estadio BBVA',city:'Monterrey, MX'},{id:'nyc',name:'Yankee Stadium',city:'New York, NY'},{id:'philly',name:'Lincoln Financial Field',city:'Philadelphia, PA'}];
 const TEAMS=['Argentina','Brazil','France','England','Germany','Spain','Portugal','Netherlands','Italy','USA','Mexico','Canada','Japan','Morocco','Senegal','Australia','Belgium','Croatia','Uruguay','Colombia','Chile','Ecuador','Peru','South Korea','Saudi Arabia','Iran','Poland','Denmark','Switzerland','Serbia','Wales','Tunisia'];
 const STAGE_BASES={'Group Stage':180,'Round of 16':320,'Quarterfinal':580,'Semifinal':950,'Final':2200};
 const STAGE_VOL={'Group Stage':0.08,'Round of 16':0.12,'Quarterfinal':0.15,'Semifinal':0.19,'Final':0.25};
@@ -574,8 +597,7 @@ const STAGE_RESALE_MX={'Group Stage':2.8,'Round of 16':4.2,'Quarterfinal':6.0,'S
 const STAGE_DAY_OFFSET={'Group Stage':4,'Round of 16':19,'Quarterfinal':26,'Semifinal':30,'Final':34};
 const TODAY=new Date('2026-03-17');
 
-/* Category config — Cat 3 is the universal sort/filter/alert anchor.
-   Individual cat selections change the displayed price and chart only. */
+/* Category config — Cat 3 is the universal sort/filter/alert anchor. */
 const CAT_MX={'Cat 1':2.2,'Cat 2':1.5,'Cat 3':1.0,'Cat 4':0.65};
 const CAT_COLORS={'Cat 1':'#D85A30','Cat 2':'#BA7517','Cat 3':'#0F6E56','Cat 4':'#378ADD'};
 const CAT_DESC={
@@ -604,7 +626,7 @@ function setCat(cat){
 function daysUntil(o){const d=new Date('2026-06-11');d.setDate(d.getDate()+o);return Math.round((d-TODAY)/86400000);}
 function seededRand(s){let v=s;return()=>{v=(v*9301+49297)%233280;return v/233280;};}
 
-/* Synthetic price history — urgency curve accelerates near match day.
+/* Synthetic 180-day price history — urgency curve accelerates near match day.
    PRODUCTION SWAP: replace with fetch('/api/prices?matchId=X') */
 function generatePrices(base,vol,seed){
   const rand=seededRand(seed),prices=[],labels=[];
@@ -650,7 +672,7 @@ const collState={rc:false,alerts:false,sim:false};
 const IN_CLAUDE=typeof sendPrompt==='function'; // true when running inside claude.ai
 
 /* Markup % is category-invariant (catMx cancels in resale/face ratio).
-   Per-category prices computed for All-mode range display and portfolio. */
+   Per-category prices returned for All-mode range display and portfolio. */
 function getMetrics(m){
   const p=m.priceData.prices,cur=p[p.length-1],prev7=p[p.length-8];
   const delta7=cur-prev7,pct7=((delta7/prev7)*100).toFixed(1);
@@ -665,8 +687,9 @@ function getMetrics(m){
 
 /* =============================================================================
    SIGNAL WEIGHTS — context-aware injection
-   SIGNAL_CONTEXTS defines which signals each AI analysis type receives.
-   buildSignalContext() serializes only the relevant subset into prompt text.
+   SIGNAL_CONTEXTS: which signals each analysis type receives.
+   buildSignalContext(): serializes relevant subset into prompt text.
+   renderSignalCtx(): returns HTML card shown before each AI result.
    ============================================================================= */
 
 const SIGNAL_CONTEXTS={
@@ -677,13 +700,9 @@ const SIGNAL_CONTEXTS={
 };
 
 const SIGNAL_LABELS={
-  priceTrend:'Price trend',
-  daysRemaining:'Days remaining',
-  bracketRisk:'Bracket position risk',
-  travelAccessibility:'Fan travel accessibility',
-  rivalryAtmosphere:'Rivalry / atmosphere',
-  resaleLiquidity:'Resale liquidity',
-  budgetFlexibility:'Budget flexibility',
+  priceTrend:'Price trend',daysRemaining:'Days remaining',bracketRisk:'Bracket risk',
+  travelAccessibility:'Travel access',rivalryAtmosphere:'Rivalry/atmosphere',
+  resaleLiquidity:'Resale liquidity',budgetFlexibility:'Budget flexibility',
   buyerIntent:'Buyer intent'
 };
 
@@ -700,15 +719,28 @@ function getWeights(){
   };
 }
 
-/* Returns prompt text for only the signals relevant to the given analysis type */
+/* Serializes relevant signals into prompt text for the given analysis type */
 function buildSignalContext(analysisType){
   const w=getWeights();
   const keys=SIGNAL_CONTEXTS[analysisType]||[];
-  const lines=keys.map(k=>`- ${SIGNAL_LABELS[k]}: ${w[k]}`);
-  return`User-configured signal priorities (${analysisType} analysis):\n${lines.join('\n')}`;
+  return`User-configured signal priorities (${analysisType} analysis):\n${keys.map(k=>`- ${SIGNAL_LABELS[k]}: ${w[k]}`).join('\n')}`;
 }
 
-/* Buyer intent toggle — binary, displayed prominently above weight dropdowns */
+/* Returns HTML card showing which signals were applied and at what weight.
+   Rendered before each AI result so the user can see exactly what was injected.
+   High-priority signals get a blue accent. Buyer intent gets a green accent. */
+function renderSignalCtx(analysisType){
+  const w=getWeights();
+  const keys=SIGNAL_CONTEXTS[analysisType]||[];
+  const chips=keys.map(k=>{
+    const val=w[k];
+    const cls=k==='buyerIntent'?'intent':val==='High'?'high':'';
+    return`<span class="sig-chip ${cls}">${SIGNAL_LABELS[k]}: ${val}</span>`;
+  }).join('');
+  return`<div class="sig-ctx"><div class="sig-ctx-lbl">Signals applied · ${analysisType}</div><div class="sig-chips">${chips}</div></div>`;
+}
+
+/* Buyer intent toggle — binary, reframes all four analysis types */
 let buyerIntent='Attend';
 function setIntent(intent){
   buyerIntent=intent;
@@ -717,8 +749,16 @@ function setIntent(intent){
   document.getElementById('intentDesc').textContent=intent==='Attend'
     ?'Optimize for experience, certainty, and price lock-in'
     :'Optimize for price trajectory, exit windows, and resale upside';
-  /* Keep hidden input in sync for getWeights() */
   document.getElementById('w-intent').value=intent;
+}
+
+/* Helper to disable/enable all AI buttons during a call */
+function setAiBtnsDisabled(disabled){
+  ['analyze-btn','best-value-btn','resale-risk-btn','sim-analyze-btn',
+   'scenario-risk-btn','port-analyze-btn','port-risk-btn'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.disabled=disabled;
+  });
 }
 
 /* =============================================================================
@@ -800,26 +840,46 @@ function renderPortfolio(){
 }
 function removeWL(id){watchlist.delete(id);renderMatchList();updatePortCount();renderPortfolio();}
 
-function analyzePortfolio(){
+/* Portfolio AI buttons — results display in port-ai-out with signal context card */
+async function analyzePortfolio(){
   const items=[...watchlist].map(id=>ALL_MATCHES.find(m=>m.id===id));
   if(!items.length)return;
+  const out=document.getElementById('port-ai-out');
   const cat=selectedCat==='All'?'Cat 3':selectedCat;
   const tFv=items.reduce((s,m)=>s+faceValFor(m,cat),0);
   const tRes=items.reduce((s,m)=>s+resalePriceFor(m,cat),0);
-  const details=items.map(m=>{const met=getMetrics(m);const days=daysUntil(m.dayOffset);return`${m.teams[0]} vs ${m.teams[1]} (${m.stage}, ${m.stadium.city.split(',')[0]}, ${cat} face $${faceValFor(m,cat)}, resale $${resalePriceFor(m,cat)}, +${met.markup}% markup, ${days} days away, ${m.demand} demand)`;}).join('; ');
+  const details=items.map(m=>{const met=getMetrics(m);const days=daysUntil(m.dayOffset);
+    return`${m.teams[0]} vs ${m.teams[1]} (${m.stage}, ${m.stadium.city.split(',')[0]}, ${cat} face $${faceValFor(m,cat)}, resale $${resalePriceFor(m,cat)}, +${met.markup}% markup, ${days} days, ${m.demand} demand)`;}).join('; ');
   const signals=buildSignalContext('bestValue');
-  const prompt=`I'm watching ${items.length} WC2026 matches. Total ${cat} face value: $${tFv.toLocaleString()}, total resale: $${tRes.toLocaleString()}.\n\nMatches: ${details}\n\n${signals}\n\nAnalyze my portfolio: which to buy first, which can I wait on, biggest price risk, is total spend reasonable?`;
-  if(IN_CLAUDE){sendPrompt(prompt);}else{navigator.clipboard?.writeText(prompt).then(()=>alert('Prompt copied to clipboard.')).catch(()=>alert(`Copy into Claude:\n\n${prompt}`));}
+  out.innerHTML=renderSignalCtx('bestValue')+'<span style="color:var(--color-text-secondary);font-size:13px">Analyzing portfolio...</span>';
+  setAiBtnsDisabled(true);
+  try{
+    const text=await callClaude(`You are a sports ticket market analyst reviewing a WC2026 watchlist.\n\nPortfolio: ${items.length} matches | Total ${cat} face: $${tFv.toLocaleString()} | Total resale: $${tRes.toLocaleString()}\nMatches: ${details}\n\n${signals}\n\nAnalyze this portfolio: which to buy first, which can wait, biggest price risk, is total spend reasonable? Frame advice for the buyer's intent. Under 200 words.`);
+    out.innerHTML=renderSignalCtx('bestValue')+`<div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${text}</div>`;
+  } catch(e){
+    out.innerHTML=renderSignalCtx('bestValue')+`<span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;
+  }
+  setAiBtnsDisabled(false);
 }
-function askPortfolioRisk(){
+
+async function askPortfolioRisk(){
   const items=[...watchlist].map(id=>ALL_MATCHES.find(m=>m.id===id));
   if(!items.length)return;
+  const out=document.getElementById('port-ai-out');
   const extreme=items.filter(m=>m.demand==='extreme'||m.stage==='Final'||m.stage==='Semifinal');
   const signals=buildSignalContext('resaleRisk');
   const prompt=extreme.length
-    ?`My WC2026 watchlist includes high-risk matches: ${extreme.map(m=>{const met=getMetrics(m);return`${m.teams[0]} vs ${m.teams[1]} (${m.stage}, +${met.markup}% markup)`;}).join(', ')}.\n\n${signals}\n\nWhat specific price spike scenarios should I prepare for?`
-    :`My WC2026 watchlist has no extreme-demand matches. What are general price risks for Group Stage and Round of 16 with 86 days to go?\n\n${signals}`;
-  if(IN_CLAUDE){sendPrompt(prompt);}else{navigator.clipboard?.writeText(prompt).then(()=>alert('Prompt copied.')).catch(()=>alert(`Copy:\n\n${prompt}`));}
+    ?`My WC2026 watchlist includes high-risk matches: ${extreme.map(m=>{const met=getMetrics(m);return`${m.teams[0]} vs ${m.teams[1]} (${m.stage}, +${met.markup}% markup)`;}).join(', ')}.\n\n${signals}\n\nWhat specific price spike scenarios should I prepare for? Frame for buyer's intent. Under 150 words.`
+    :`My WC2026 watchlist has no extreme-demand matches. What are general price risks?\n\n${signals}\n\nUnder 150 words.`;
+  out.innerHTML=renderSignalCtx('resaleRisk')+'<span style="color:var(--color-text-secondary);font-size:13px">Analyzing portfolio risk...</span>';
+  setAiBtnsDisabled(true);
+  try{
+    const text=await callClaude(prompt);
+    out.innerHTML=renderSignalCtx('resaleRisk')+`<div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${text}</div>`;
+  } catch(e){
+    out.innerHTML=renderSignalCtx('resaleRisk')+`<span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;
+  }
+  setAiBtnsDisabled(false);
 }
 
 /* =============================================================================
@@ -929,7 +989,7 @@ function renderMatchList(){
   el.innerHTML=filtered.map(m=>{
     const starred=watchlist.has(m.id),ha=alerts.some(a=>a.matchId===m.id&&!a.fired);
     return`<div class="match-item ${m.id===selectedMatch.id?'selected':''}" onclick="selectMatch(${m.id})">
-      <button class="star-btn ${starred?'starred':''}" onclick="toggleWatchlist(${m.id},event)">${starred?'★':'☆'}</button>
+      <button class="star-btn ${starred?'starred':''}" onclick="toggleWatchlist(${m.id},event)" aria-label="${starred?'Remove from':'Add to'} watchlist">${starred?'★':'☆'}</button>
       <div class="match-item-content"><div class="teams">${m.teams[0]} vs ${m.teams[1]}${ha?' 🔔':''}</div><div class="meta">${m.stage} · ${m.stadium.city.split(',')[0]}</div></div>
       <span class="price-tag">$${resalePrice(m).toLocaleString()}</span>
     </div>`;
@@ -958,40 +1018,45 @@ function renderChart(){
   const gc=isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.05)',tc='#888780';
   if(chart)chart.destroy();
   let datasets;
-  if(selectedCat==='All'){
-    /* All mode: four category lines. No face value line (too cluttered with 4 lines). */
-    datasets=Object.keys(CAT_MX).map(cat=>{
-      const prices=m.priceData.prices.map(p=>Math.round(p*m.resaleMx*CAT_MX[cat]));
-      const sampled=prices.filter((_,i)=>i%7===0||i===prices.length-1);
-      return{label:cat,data:sampled,borderColor:CAT_COLORS[cat],backgroundColor:'transparent',
-        borderWidth:cat==='Cat 3'?2:1.5,fill:false,tension:0.4,pointRadius:0,
-        pointHoverRadius:3,pointHoverBackgroundColor:CAT_COLORS[cat]};
-    });
-    document.getElementById('chartLegend').style.display='flex';
-  } else {
-    /* Single cat: resale curve (filled) + face value reference (dotted green) */
-    const rp=m.priceData.prices.map(p=>Math.round(p*m.resaleMx*CAT_MX[selectedCat]));
-    const fv=faceValFor(m,selectedCat);
-    const sampled=rp.filter((_,i)=>i%7===0||i===rp.length-1);
-    datasets=[
-      {label:'Resale',data:sampled,borderColor:'#D85A30',backgroundColor:'rgba(216,90,48,0.07)',borderWidth:1.5,fill:true,tension:0.4,pointRadius:0,pointHoverRadius:4,pointHoverBackgroundColor:'#D85A30'},
-      {label:'Face value',data:Array(sampled.length).fill(fv),borderColor:'#0F6E56',borderWidth:1,borderDash:[5,4],pointRadius:0,fill:false,tension:0}
-    ];
-    document.getElementById('chartLegend').style.display='none';
-  }
-  chart=new Chart(document.getElementById('priceChart').getContext('2d'),{
-    type:'line',data:{labels:sl,datasets},
-    options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{
-        callbacks:{label:c=>{if(c.dataset.label==='Face value')return`  Face value: $${c.parsed.y.toLocaleString()}`;return` ${c.dataset.label}: $${c.parsed.y.toLocaleString()}`;}},
-        backgroundColor:isDark?'#2C2C2A':'#fff',borderColor:isDark?'rgba(255,255,255,0.15)':'rgba(0,0,0,0.12)',borderWidth:0.5,titleColor:tc,bodyColor:isDark?'#D3D1C7':'#444441',padding:10}},
-      scales:{
-        x:{grid:{color:gc},ticks:{color:tc,font:{size:10,family:'monospace'},maxRotation:0,autoSkip:true,maxTicksLimit:6}},
-        y:{grid:{color:gc},ticks:{color:tc,font:{size:10,family:'monospace'},callback:v=>'$'+v.toLocaleString()},beginAtZero:false}
-      }
+  try{
+    if(selectedCat==='All'){
+      /* All mode: four category lines. No face value line (too cluttered with 4 lines). */
+      datasets=Object.keys(CAT_MX).map(cat=>{
+        const prices=m.priceData.prices.map(p=>Math.round(p*m.resaleMx*CAT_MX[cat]));
+        const sampled=prices.filter((_,i)=>i%7===0||i===prices.length-1);
+        return{label:cat,data:sampled,borderColor:CAT_COLORS[cat],backgroundColor:'transparent',
+          borderWidth:cat==='Cat 3'?2:1.5,fill:false,tension:0.4,pointRadius:0,
+          pointHoverRadius:3,pointHoverBackgroundColor:CAT_COLORS[cat]};
+      });
+      document.getElementById('chartLegend').style.display='flex';
+    } else {
+      /* Single cat: resale curve (filled) + face value reference (dotted green) */
+      const rp=m.priceData.prices.map(p=>Math.round(p*m.resaleMx*CAT_MX[selectedCat]));
+      const fv=faceValFor(m,selectedCat);
+      const sampled=rp.filter((_,i)=>i%7===0||i===rp.length-1);
+      datasets=[
+        {label:'Resale',data:sampled,borderColor:'#D85A30',backgroundColor:'rgba(216,90,48,0.07)',borderWidth:1.5,fill:true,tension:0.4,pointRadius:0,pointHoverRadius:4,pointHoverBackgroundColor:'#D85A30'},
+        {label:'Face value',data:Array(sampled.length).fill(fv),borderColor:'#0F6E56',borderWidth:1,borderDash:[5,4],pointRadius:0,fill:false,tension:0}
+      ];
+      document.getElementById('chartLegend').style.display='none';
     }
-  });
-  /* Buy signal uses Cat 3 as the reference regardless of selected category */
+    chart=new Chart(document.getElementById('priceChart').getContext('2d'),{
+      type:'line',data:{labels:sl,datasets},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{
+          callbacks:{label:c=>{if(c.dataset.label==='Face value')return`  Face value: $${c.parsed.y.toLocaleString()}`;return` ${c.dataset.label}: $${c.parsed.y.toLocaleString()}`;}},
+          backgroundColor:isDark?'#2C2C2A':'#fff',borderColor:isDark?'rgba(255,255,255,0.15)':'rgba(0,0,0,0.12)',borderWidth:0.5,titleColor:tc,bodyColor:isDark?'#D3D1C7':'#444441',padding:10}},
+        scales:{
+          x:{grid:{color:gc},ticks:{color:tc,font:{size:10,family:'monospace'},maxRotation:0,autoSkip:true,maxTicksLimit:6}},
+          y:{grid:{color:gc},ticks:{color:tc,font:{size:10,family:'monospace'},callback:v=>'$'+v.toLocaleString()},beginAtZero:false}
+        }
+      }
+    });
+  } catch(e){
+    /* Chart.js CDN failure — degrade gracefully, don't halt app */
+    console.warn('Chart render failed:',e.message);
+  }
+  /* Buy signal uses Cat 3 regardless of selected category */
   const rp3=m.priceData.prices.map(p=>Math.round(p*m.resaleMx*CAT_MX['Cat 3']));
   const cur=rp3[rp3.length-1],low30=Math.min(...rp3.slice(-30)),pct=((cur-low30)/low30*100).toFixed(0);
   const sig=cur<=low30*1.03?'buy now':cur<=low30*1.08?'buy soon':'prices falling';
@@ -1011,9 +1076,8 @@ function selectMatch(id){
 
 /* =============================================================================
    SCENARIO SIMULATION — Layer 4
-   Always uses Cat 3 as the baseline. Growth rates apply to total period:
-   base=40%, optimistic=10%, pessimistic=75%.
-   Team events and supply shocks multiply these rates.
+   Always uses Cat 3. Growth rates: base=40%, optimistic=10%, pessimistic=75%.
+   Team events and supply shocks apply multipliers to these rates.
    ============================================================================= */
 function projectScenario(startPrice,days,scenario,params){
   const base={base:0.40,optimistic:0.10,pessimistic:0.75};
@@ -1031,7 +1095,7 @@ function projectScenario(startPrice,days,scenario,params){
   }
   return prices;
 }
-/* Scan base projection for the inflection point where 7-day growth exceeds 2.5% */
+/* Scan base projection for inflection point where 7-day growth exceeds 2.5% */
 function findOptimalBuyDay(proj){
   for(let i=7;i<proj.length;i++){if((proj[i]-proj[i-7])/proj[i-7]>0.025)return Math.max(1,i-7);}
   return Math.floor(proj.length*0.6);
@@ -1066,27 +1130,29 @@ function renderSimChart(){
   const isDark=window.matchMedia('(prefers-color-scheme: dark)').matches;
   const gc=isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.05)',tc='#888780';
   if(simChart)simChart.destroy();
-  simChart=new Chart(document.getElementById('simChart').getContext('2d'),{
-    type:'line',
-    data:{labels:sl,datasets:[
-      {label:'_upper',data:idx.map(i=>upper[i]),borderColor:'transparent',backgroundColor:'rgba(55,138,221,0.10)',fill:'+1',pointRadius:0,tension:0.4,order:6},
-      {label:'_lower',data:idx.map(i=>lower[i]),borderColor:'transparent',fill:false,pointRadius:0,tension:0.4,order:6},
-      {label:'Base case',data:idx.map(i=>baseP[i]),borderColor:'#378ADD',borderWidth:2,fill:false,pointRadius:0,pointHoverRadius:4,tension:0.4,order:3},
-      {label:'Best case',data:idx.map(i=>optP[i]),borderColor:'#1d9e75',borderWidth:1.5,borderDash:[4,3],fill:false,pointRadius:0,tension:0.4,order:4},
-      {label:'Worst case',data:idx.map(i=>pesP[i]),borderColor:'#D85A30',borderWidth:1.5,borderDash:[4,3],fill:false,pointRadius:0,tension:0.4,order:4},
-      {label:'Face value',data:idx.map(()=>fv),borderColor:'#0F6E56',borderWidth:1,borderDash:[5,4],fill:false,pointRadius:0,tension:0,order:2}
-    ]},
-    options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{
-        callbacks:{label:c=>{if(c.dataset.label.startsWith('_'))return null;return` ${c.dataset.label}: $${c.parsed.y.toLocaleString()}`;}},
-        filter:i=>!i.dataset.label.startsWith('_'),
-        backgroundColor:isDark?'#2C2C2A':'#fff',borderColor:isDark?'rgba(255,255,255,0.15)':'rgba(0,0,0,0.12)',borderWidth:0.5,titleColor:tc,bodyColor:isDark?'#D3D1C7':'#444441',padding:10}},
-      scales:{
-        x:{grid:{color:gc},ticks:{color:tc,font:{size:10,family:'monospace'},maxRotation:0,autoSkip:true,maxTicksLimit:8}},
-        y:{grid:{color:gc},ticks:{color:tc,font:{size:10,family:'monospace'},callback:v=>'$'+v.toLocaleString()},beginAtZero:false}
+  try{
+    simChart=new Chart(document.getElementById('simChart').getContext('2d'),{
+      type:'line',
+      data:{labels:sl,datasets:[
+        {label:'_upper',data:idx.map(i=>upper[i]),borderColor:'transparent',backgroundColor:'rgba(55,138,221,0.10)',fill:'+1',pointRadius:0,tension:0.4,order:6},
+        {label:'_lower',data:idx.map(i=>lower[i]),borderColor:'transparent',fill:false,pointRadius:0,tension:0.4,order:6},
+        {label:'Base case',data:idx.map(i=>baseP[i]),borderColor:'#378ADD',borderWidth:2,fill:false,pointRadius:0,pointHoverRadius:4,tension:0.4,order:3},
+        {label:'Best case',data:idx.map(i=>optP[i]),borderColor:'#1d9e75',borderWidth:1.5,borderDash:[4,3],fill:false,pointRadius:0,tension:0.4,order:4},
+        {label:'Worst case',data:idx.map(i=>pesP[i]),borderColor:'#D85A30',borderWidth:1.5,borderDash:[4,3],fill:false,pointRadius:0,tension:0.4,order:4},
+        {label:'Face value',data:idx.map(()=>fv),borderColor:'#0F6E56',borderWidth:1,borderDash:[5,4],fill:false,pointRadius:0,tension:0,order:2}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{
+          callbacks:{label:c=>{if(c.dataset.label.startsWith('_'))return null;return` ${c.dataset.label}: $${c.parsed.y.toLocaleString()}`;}},
+          filter:i=>!i.dataset.label.startsWith('_'),
+          backgroundColor:isDark?'#2C2C2A':'#fff',borderColor:isDark?'rgba(255,255,255,0.15)':'rgba(0,0,0,0.12)',borderWidth:0.5,titleColor:tc,bodyColor:isDark?'#D3D1C7':'#444441',padding:10}},
+        scales:{
+          x:{grid:{color:gc},ticks:{color:tc,font:{size:10,family:'monospace'},maxRotation:0,autoSkip:true,maxTicksLimit:8}},
+          y:{grid:{color:gc},ticks:{color:tc,font:{size:10,family:'monospace'},callback:v=>'$'+v.toLocaleString()},beginAtZero:false}
+        }
       }
-    }
-  });
+    });
+  } catch(e){console.warn('Sim chart render failed:',e.message);}
 }
 
 /* =============================================================================
@@ -1094,7 +1160,6 @@ function renderSimChart(){
    callClaude() auto-routes:
      · No key pasted → POST /api/analyze (Vercel proxy, key server-side)
      · Key pasted    → direct Anthropic API call (local dev / demo)
-   Handles non-ok responses with clear user-facing error message.
    PRODUCTION: remove the direct path, use proxy exclusively.
    ============================================================================= */
 async function callClaude(prompt){
@@ -1102,7 +1167,7 @@ async function callClaude(prompt){
   if(!key){
     let r;
     try{r=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt})});}
-    catch(e){throw new Error('Paste your Anthropic API key above to enable AI analysis.');}
+    catch(e){throw new Error('AI analysis unavailable — check your connection or paste an API key above.');}
     if(!r.ok)throw new Error('Paste your Anthropic API key above to enable AI analysis.');
     const d=await r.json();
     if(d.error)throw new Error(d.error);
@@ -1117,10 +1182,9 @@ async function callClaude(prompt){
   return d.content?.[0]?.text||(d.error?.message?`Error: ${d.error.message}`:'No response.');
 }
 
-/* Simulation analysis — context-aware: receives price/timing/bracket/intent signals */
+/* Simulation analysis — simulation signal context */
 async function analyzeSimulation(){
   const btn=document.getElementById('sim-analyze-btn'),out=document.getElementById('ai-output');
-  btn.disabled=true;btn.textContent='Analyzing...';
   const days=daysUntil(selectedMatch.dayOffset);
   const cr=resalePriceFor(selectedMatch,'Cat 3'),fv=faceValFor(selectedMatch,'Cat 3');
   const p=getSimParams();
@@ -1129,7 +1193,8 @@ async function analyzeSimulation(){
   const pesP=projectScenario(cr,days,'pessimistic',p);
   const optDay=findOptimalBuyDay(baseP);
   const signals=buildSignalContext('simulation');
-  out.innerHTML='<span style="color:var(--color-text-secondary);font-size:13px">Analyzing simulation scenarios...</span>';
+  out.innerHTML=renderSignalCtx('simulation')+'<span style="color:var(--color-text-secondary);font-size:13px">Analyzing simulation scenarios...</span>';
+  setAiBtnsDisabled(true);
   try{
     const text=await callClaude(`You are a sports ticket market analyst reviewing a price simulation.
 
@@ -1143,20 +1208,39 @@ Spread: $${(pesP[days-1]-optP[days-1]).toLocaleString()} | Optimal buy window: w
 
 ${signals}
 
-4-5 sentences: What does the spread tell us about risk? Which parameter drives worst case? Is the buy window realistic given the buyer intent? End with specific buy/wait recommendation and timeframe.`);
+4-5 sentences: What does the spread tell us about risk? Which parameter drives worst case? Is the buy window realistic given buyer intent? End with specific buy/wait recommendation.`);
     let bc='badge-wait',bt='WAIT';
     if(text.toLowerCase().includes('buy now')||text.toLowerCase().includes('buy within')){bc='badge-buy';bt='BUY NOW';}
     if(text.toLowerCase().includes('urgent')){bc='badge-urgent';bt='URGENT';}
-    out.innerHTML=`<div class="rec-badge ${bc}">${bt}</div><div class="signal-row"><span class="signal">simulation</span><span class="signal">Cat 3</span><span class="signal">base→$${baseP[days-1].toLocaleString()}</span><span class="signal">worst→$${pesP[days-1].toLocaleString()}</span><span class="signal">spread $${(pesP[days-1]-optP[days-1]).toLocaleString()}</span></div><div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${text}</div>`;
-  } catch(e){out.innerHTML=`<div class="rec-badge badge-wait">—</div><span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;}
-  btn.disabled=false;btn.textContent='Analyze simulation ↗';
+    out.innerHTML=`${renderSignalCtx('simulation')}<div class="rec-badge ${bc}">${bt}</div><div class="signal-row"><span class="signal">simulation</span><span class="signal">Cat 3</span><span class="signal">base→$${baseP[days-1].toLocaleString()}</span><span class="signal">worst→$${pesP[days-1].toLocaleString()}</span><span class="signal">spread $${(pesP[days-1]-optP[days-1]).toLocaleString()}</span></div><div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${text}</div>`;
+  } catch(e){out.innerHTML=`${renderSignalCtx('simulation')}<div class="rec-badge badge-wait">—</div><span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;}
+  setAiBtnsDisabled(false);
 }
 
-/* Main analysis — RAG pipeline: retrieval → grounded analysis.
-   Receives all 8 signals (full context). */
+/* Scenario risk — resaleRisk signal context, displays in AI panel */
+async function askScenarioRisk(){
+  const out=document.getElementById('ai-output');
+  const days=daysUntil(selectedMatch.dayOffset),cr=resalePriceFor(selectedMatch,'Cat 3');
+  const p=getSimParams(),baseP=projectScenario(cr,days,'base',p),pesP=projectScenario(cr,days,'pessimistic',p);
+  const signals=buildSignalContext('resaleRisk');
+  out.innerHTML=renderSignalCtx('resaleRisk')+'<span style="color:var(--color-text-secondary);font-size:13px">Analyzing scenario risk...</span>';
+  setAiBtnsDisabled(true);
+  try{
+    const text=await callClaude(`WC2026 scenario risk analysis for ${selectedMatch.teams[0]} vs ${selectedMatch.teams[1]} (${selectedMatch.stage}, Cat 3).
+Simulation: trajectory=${p.traj}, team=${p.team.replace(/_/g,' ')}, supply=${p.supply.replace(/_/g,' ')}.
+Base case at match day: $${baseP[days-1].toLocaleString()}, worst case: $${pesP[days-1].toLocaleString()}, spread: $${(pesP[days-1]-baseP[days-1]).toLocaleString()}.
+
+${signals}
+
+What real-world signals indicate we're moving toward the worst case? Frame for buyer's intent. Under 200 words.`);
+    out.innerHTML=`${renderSignalCtx('resaleRisk')}<div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${text}</div>`;
+  } catch(e){out.innerHTML=`${renderSignalCtx('resaleRisk')}<span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;}
+  setAiBtnsDisabled(false);
+}
+
+/* Main analysis — RAG pipeline: retrieval → grounded analysis, all 8 signals */
 async function runAnalysis(){
   const btn=document.getElementById('analyze-btn'),out=document.getElementById('ai-output');
-  btn.disabled=true;btn.textContent='Analyzing...';
   const met=getMetrics(selectedMatch),days=daysUntil(selectedMatch.dayOffset);
   const cat=selectedCat==='All'?'Cat 3':selectedCat;
   const rp=resalePriceFor(selectedMatch,cat),fv=faceValFor(selectedMatch,cat);
@@ -1164,7 +1248,8 @@ async function runAnalysis(){
     ?`All categories — Cat 3 reference: face $${met.fvCat3}, resale $${met.resCat3}; full range $${met.fvCat4}–$${met.fvCat1} face / $${met.resCat4}–$${met.resCat1} resale`
     :`${selectedCat}: face $${fv}, resale $${rp}`;
   const signals=buildSignalContext('analyze');
-  out.innerHTML=`<div class="rag-step active"><span style="font-size:13px">⟳</span><span class="rag-step-lbl">Step 1 — Retrieving context:</span><span class="rag-step-content">Fetching team form for ${selectedMatch.teams[0]} and ${selectedMatch.teams[1]}...</span></div>`;
+  out.innerHTML=`${renderSignalCtx('analyze')}<div class="rag-step active"><span style="font-size:13px">⟳</span><span class="rag-step-lbl">Step 1 — Retrieving context:</span><span class="rag-step-content">Fetching team form for ${selectedMatch.teams[0]} and ${selectedMatch.teams[1]}...</span></div>`;
+  setAiBtnsDisabled(true);
   let rag='';
   try{
     /* CALL 1: RAG retrieval — simulates vector DB lookup in production */
@@ -1176,7 +1261,7 @@ async function runAnalysis(){
 - Any injury concerns (1 sentence)
 
 Under 150 words. Factual only.`);
-    out.innerHTML=`<div class="rag-step done"><span style="font-size:13px">✓</span><span class="rag-step-lbl">Step 1 — Context retrieved</span><span class="rag-step-content"><span class="rag-ctx-tog" onclick="toggleRagCtx(this)">show retrieved context ▼</span><div class="rag-ctx-body" style="display:none">${rag}</div></span></div><div class="rag-step active"><span style="font-size:13px">⟳</span><span class="rag-step-lbl">Step 2 — Analyzing:</span><span class="rag-step-content">Generating signal-weighted recommendation...</span></div>`;
+    out.innerHTML=`${renderSignalCtx('analyze')}<div class="rag-step done"><span style="font-size:13px">✓</span><span class="rag-step-lbl">Step 1 — Context retrieved</span><span class="rag-step-content"><span class="rag-ctx-tog" onclick="toggleRagCtx(this)">show retrieved context ▼</span><div class="rag-ctx-body" style="display:none">${rag}</div></span></div><div class="rag-step active"><span style="font-size:13px">⟳</span><span class="rag-step-lbl">Step 2 — Analyzing:</span><span class="rag-step-content">Generating signal-weighted recommendation...</span></div>`;
     /* CALL 2: Grounded analysis — injects retrieved context + price data + all 8 signals */
     const rec=await callClaude(`You are a sports ticket market analyst.
 
@@ -1191,48 +1276,64 @@ Pricing (${catContext}) | Markup: +${met.markup}% | Days to match: ${days} | Dem
 ${signals}
 
 Instructions:
-1. Write "Signal breakdown:" then for each signal listed above: name [priority] direction (↑/↓/→) one-sentence assessment.
+1. Write "Signal breakdown:" then for each signal: name [priority] direction (↑/↓/→) one-sentence assessment.
 2. Write BUY NOW / WAIT / URGENT on its own line.
-3. 2-3 sentences referencing both team context and price data, framed for the buyer's intent.
+3. 2-3 sentences referencing both team context and price data, framed for buyer's intent.
 
 Under 200 words.`);
     let bc='badge-wait',bt='WAIT';
     if(rec.toLowerCase().includes('buy now')){bc='badge-buy';bt='BUY NOW';}
     if(rec.toLowerCase().includes('urgent')){bc='badge-urgent';bt='URGENT';}
-    out.innerHTML=`<div class="rag-step done"><span style="font-size:13px">✓</span><span class="rag-step-lbl">Step 1 — Context retrieved</span><span class="rag-step-content"><span class="rag-ctx-tog" onclick="toggleRagCtx(this)">show retrieved context ▼</span><div class="rag-ctx-body" style="display:none">${rag}</div></span></div><div class="rag-step done"><span style="font-size:13px">✓</span><span class="rag-step-lbl">Step 2 — Analysis complete</span><span class="rag-step-content">All 8 signals applied · buyer intent: ${getWeights().buyerIntent}</span></div><div class="rec-badge ${bc}">${bt}</div><div class="signal-row"><span class="signal">${selectedMatch.stage}</span><span class="signal">${selectedCat}</span><span class="signal">markup +${met.markup}%</span><span class="signal">${days}d to match</span><span class="signal">${getWeights().buyerIntent}</span></div><div style="font-size:13px;line-height:1.7;color:var(--color-text-primary);white-space:pre-line">${rec}</div>`;
-  } catch(e){out.innerHTML=`<div class="rec-badge badge-wait">—</div><span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;}
-  btn.disabled=false;btn.textContent='Analyze ↗';
+    out.innerHTML=`${renderSignalCtx('analyze')}<div class="rag-step done"><span style="font-size:13px">✓</span><span class="rag-step-lbl">Step 1 — Context retrieved</span><span class="rag-step-content"><span class="rag-ctx-tog" onclick="toggleRagCtx(this)">show retrieved context ▼</span><div class="rag-ctx-body" style="display:none">${rag}</div></span></div><div class="rag-step done"><span style="font-size:13px">✓</span><span class="rag-step-lbl">Step 2 — Analysis complete</span><span class="rag-step-content">All 8 signals applied · buyer intent: ${getWeights().buyerIntent}</span></div><div class="rec-badge ${bc}">${bt}</div><div class="signal-row"><span class="signal">${selectedMatch.stage}</span><span class="signal">${selectedCat}</span><span class="signal">markup +${met.markup}%</span><span class="signal">${days}d to match</span><span class="signal">${getWeights().buyerIntent}</span></div><div style="font-size:13px;line-height:1.7;color:var(--color-text-primary);white-space:pre-line">${rec}</div>`;
+  } catch(e){out.innerHTML=`${renderSignalCtx('analyze')}<div class="rec-badge badge-wait">—</div><span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;}
+  setAiBtnsDisabled(false);
 }
 
 function toggleRagCtx(el){const b=el.nextElementSibling;const open=b.style.display==='block';b.style.display=open?'none':'block';el.textContent=open?'show retrieved context ▼':'hide retrieved context ▲';}
 
-/* Conversational buttons — context-aware signal injection.
-   sendPrompt() in claude.ai, clipboard copy in standalone. */
-function askBestValue(){
+/* Best Value — bestValue signal context, displays in AI panel */
+async function askBestValue(){
+  const out=document.getElementById('ai-output');
   const top5=[...ALL_MATCHES].sort((a,b)=>resalePrice(a)-resalePrice(b)).slice(0,5);
   const signals=buildSignalContext('bestValue');
-  const prompt=`Compare these 5 WC2026 matches (Cat 3): ${top5.map(m=>{const met=getMetrics(m);return`${m.teams[0]} vs ${m.teams[1]} (${m.stage}, ${m.stadium.city.split(',')[0]}, face $${met.fvCat3}, resale $${met.resCat3}, +${met.markup}% markup)`;}).join('; ')}.\n\n${signals}\n\nWhich is best value and why?`;
-  if(IN_CLAUDE){sendPrompt(prompt);}else{navigator.clipboard?.writeText(prompt).then(()=>alert('Prompt copied to clipboard — paste into Claude.')).catch(()=>alert(`Copy this prompt into Claude:\n\n${prompt}`));}
+  out.innerHTML=renderSignalCtx('bestValue')+'<span style="color:var(--color-text-secondary);font-size:13px">Comparing best value matches...</span>';
+  setAiBtnsDisabled(true);
+  try{
+    const text=await callClaude(`You are a sports ticket market analyst comparing WC2026 value.
+
+Matches (Cat 3): ${top5.map(m=>{const met=getMetrics(m);return`${m.teams[0]} vs ${m.teams[1]} (${m.stage}, ${m.stadium.city.split(',')[0]}, face $${met.fvCat3}, resale $${met.resCat3}, +${met.markup}% markup, ${daysUntil(m.dayOffset)} days)`;}).join('; ')}
+
+${signals}
+
+Which match offers the best value and why? Frame the analysis for the buyer's intent. Include a ranking and specific recommendation. Under 200 words.`);
+    out.innerHTML=`${renderSignalCtx('bestValue')}<div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${text}</div>`;
+  } catch(e){out.innerHTML=`${renderSignalCtx('bestValue')}<span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;}
+  setAiBtnsDisabled(false);
 }
-function askResaleRisk(){
+
+/* Resale Risk — resaleRisk signal context, displays in AI panel */
+async function askResaleRisk(){
+  const out=document.getElementById('ai-output');
   const late=ALL_MATCHES.filter(m=>m.stage==='Final'||m.stage==='Semifinal');
   const signals=buildSignalContext('resaleRisk');
-  const prompt=`${late.map(m=>{const met=getMetrics(m);return`${m.teams[0]} vs ${m.teams[1]} (${m.stage}, Cat 3 face $${met.fvCat3}, resale $${met.resCat3}, +${met.markup}% markup, ${daysUntil(m.dayOffset)} days)`;}).join('; ')}\n\n${signals}\n\nExplain the resale risk and optimal buy timing.`;
-  if(IN_CLAUDE){sendPrompt(prompt);}else{navigator.clipboard?.writeText(prompt).then(()=>alert('Prompt copied to clipboard — paste into Claude.')).catch(()=>alert(`Copy this prompt into Claude:\n\n${prompt}`));}
-}
-function askScenarioRisk(){
-  const days=daysUntil(selectedMatch.dayOffset),cr=resalePriceFor(selectedMatch,'Cat 3');
-  const p=getSimParams(),baseP=projectScenario(cr,days,'base',p),pesP=projectScenario(cr,days,'pessimistic',p);
-  const signals=buildSignalContext('resaleRisk');
-  const prompt=`WC2026 simulation for ${selectedMatch.teams[0]} vs ${selectedMatch.teams[1]} (${selectedMatch.stage}, Cat 3). Trajectory: ${p.traj}, team: ${p.team}, supply: ${p.supply}. Base case at match day: $${baseP[days-1].toLocaleString()}, worst case: $${pesP[days-1].toLocaleString()}, spread: $${(pesP[days-1]-baseP[days-1]).toLocaleString()}.\n\n${signals}\n\nWhat real-world signals indicate we're moving toward the worst case?`;
-  if(IN_CLAUDE){sendPrompt(prompt);}else{navigator.clipboard?.writeText(prompt).then(()=>alert('Prompt copied to clipboard — paste into Claude.')).catch(()=>alert(`Copy this prompt into Claude:\n\n${prompt}`));}
+  out.innerHTML=renderSignalCtx('resaleRisk')+'<span style="color:var(--color-text-secondary);font-size:13px">Analyzing resale risk...</span>';
+  setAiBtnsDisabled(true);
+  try{
+    const text=await callClaude(`You are a sports ticket market analyst assessing WC2026 resale risk.
+
+Late-stage matches (Cat 3): ${late.map(m=>{const met=getMetrics(m);return`${m.teams[0]} vs ${m.teams[1]} (${m.stage}, face $${met.fvCat3}, resale $${met.resCat3}, +${met.markup}% markup, ${daysUntil(m.dayOffset)} days)`;}).join('; ')}
+
+${signals}
+
+Explain the resale risk and optimal buy timing for each. Frame for buyer's intent. Under 250 words.`);
+    out.innerHTML=`${renderSignalCtx('resaleRisk')}<div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${text}</div>`;
+  } catch(e){out.innerHTML=`${renderSignalCtx('resaleRisk')}<span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;}
+  setAiBtnsDisabled(false);
 }
 
 /* =============================================================================
    INITIALIZATION
    ============================================================================= */
-
-/* Hidden input to store buyer intent value for getWeights() serialization */
 document.body.insertAdjacentHTML('beforeend','<input type="hidden" id="w-intent" value="Attend"/>');
 
 populateFilters();
