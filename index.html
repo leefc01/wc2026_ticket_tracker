@@ -9,7 +9,7 @@
 
 <!--
 =============================================================================
-  FIFA WORLD CUP 2026 — TICKET INTELLIGENCE  v13
+  FIFA WORLD CUP 2026 — TICKET INTELLIGENCE  v14
   Built with Claude (Anthropic) · March 2026
 =============================================================================
 
@@ -35,8 +35,13 @@
   SIGNAL WEIGHTS — context-aware injection:
     Eight user-configurable signals. SIGNAL_CONTEXTS defines which signals
     each analysis type receives. buildSignalContext() serializes the relevant
-    subset into prompt text. renderSignalCtx() renders a visible card before
-    each AI result showing exactly which signals were applied.
+    subset into prompt text.
+
+    Signals Applied panel (#sig-panel) is permanent — always visible above
+    buttons. setActiveBtn(type) updates both the panel and the active button
+    highlight in one call. Default is 'analyze' on load and selectMatch().
+    mouseenter on any AI button calls setActiveBtn() — sticky, no mouseleave
+    reset. openSignalWeights() opens Signal Weights panel from the adj link.
 
   PRODUCTION UPGRADE PATH:
     1. Replace generatePrices() + buildMatches() with fetch('/api/matches')
@@ -159,23 +164,17 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
 .intent-btn.speculative.active{background:#378ADD;color:#fff;}
 .intent-desc{font-size:11px;color:var(--color-text-tertiary);flex:1;}
 .rc-hint{font-size:11px;color:var(--color-text-tertiary);line-height:1.6;}
-/* Signal context card — rendered before each AI result to show which signals were applied */
-.sig-ctx{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:8px 12px;margin-bottom:8px;border-left:2px solid #378ADD;}
+/* Signals Applied panel — permanent, always visible above AI action buttons */
+.sig-ctx{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:8px 12px;margin-top:10px;border-left:2px solid #378ADD;}
+.sig-ctx-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
 .sig-ctx-lbl{font-size:10px;color:var(--color-text-secondary);letter-spacing:.4px;text-transform:uppercase;}
+/* "adjust weights ↑" link — opens Signal Weights collapsible */
+.sig-ctx-adj{font-size:10px;color:var(--color-text-tertiary);cursor:pointer;text-decoration:underline;white-space:nowrap;background:none;border:none;padding:0;font-family:var(--font-mono);}
+.sig-ctx-adj:hover{color:var(--color-text-secondary);}
 .sig-chips{display:flex;gap:5px;flex-wrap:wrap;}
 .sig-chip{font-size:10px;padding:2px 7px;border-radius:4px;background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);color:var(--color-text-secondary);}
 .sig-chip.high{border-color:#378ADD;color:#378ADD;}
 .sig-chip.intent{border-color:#1d9e75;color:#1d9e75;}
-/* Preview card — dashed border distinguishes from post-result card */
-.sig-ctx.preview{border-left-color:var(--color-border-secondary);border-left-style:dashed;opacity:.9;}
-/* Header row inside signal card — label left, adjust-weights link right */
-.sig-ctx-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
-/* "adjust weights ↑" link inside preview card — opens Signal Weights panel */
-.sig-ctx-adj{font-size:10px;color:var(--color-text-tertiary);cursor:pointer;text-decoration:underline;white-space:nowrap;background:none;border:none;padding:0;font-family:var(--font-mono);}
-.sig-ctx-adj:hover{color:var(--color-text-secondary);}
-/* Preview slot — between ai-output and ai-actions, hidden until hover */
-.ai-preview{display:none;margin-top:10px;}
-.ai-preview.visible{display:block;}
 .alert-tabs{display:flex;gap:6px;}
 .alert-tab{font-size:11px;font-family:var(--font-mono);padding:3px 10px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);cursor:pointer;background:transparent;color:var(--color-text-secondary);}
 .alert-tab.active{background:var(--color-text-primary);color:var(--color-background-primary);}
@@ -225,7 +224,7 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
 .ai-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
 .ai-btn{font-size:12px;font-family:var(--font-mono);padding:5px 13px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);cursor:pointer;background:transparent;color:var(--color-text-secondary);}
 .ai-btn:hover{background:var(--color-background-secondary);color:var(--color-text-primary);}
-.ai-btn.primary{background:var(--color-text-primary);color:var(--color-background-primary);border-color:var(--color-text-primary);}
+.ai-btn.active{background:var(--color-text-primary);color:var(--color-background-primary);border-color:var(--color-text-primary);}
 .ai-btn:disabled{opacity:.4;cursor:not-allowed;}
 .rec-badge{display:inline-block;font-size:11px;font-weight:500;padding:2px 8px;border-radius:var(--border-radius-md);margin-bottom:6px;}
 .badge-buy{background:#EAF3DE;color:#3B6D11;}.badge-wait{background:#FAEEDA;color:#854F0B;}.badge-urgent{background:#FCEBEB;color:#A32D2D;}
@@ -265,7 +264,7 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
   <div class="header-row">
     <div>
       <div class="header-title">FIFA World Cup 2026 — Ticket Intelligence</div>
-      <div class="header-sub">TRACKER + SCENARIOS + PORTFOLIO + AI &nbsp;·&nbsp; v13 &nbsp;·&nbsp; 16 HOST CITIES &nbsp;·&nbsp; JUN 11 2026</div>
+      <div class="header-sub">TRACKER + SCENARIOS + PORTFOLIO + AI &nbsp;·&nbsp; v14 &nbsp;·&nbsp; 16 HOST CITIES &nbsp;·&nbsp; JUN 11 2026</div>
     </div>
     <button class="notif-btn" onclick="toggleTray()" id="notifBtn">
       Alerts<span class="notif-badge" id="notifBadge" style="display:none">0</span>
@@ -480,7 +479,7 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
         </div>
         <div class="sim-metrics" id="simMetrics"></div>
         <div class="ai-actions" style="margin-top:2px">
-          <button class="ai-btn primary" id="sim-analyze-btn" onclick="analyzeSimulation()">Analyze simulation ↗</button>
+          <button class="ai-btn" id="sim-analyze-btn" onclick="analyzeSimulation()">Analyze simulation ↗</button>
           <button class="ai-btn" id="scenario-risk-btn" onclick="askScenarioRisk()">Scenario risk ↗</button>
         </div>
       </div>
@@ -525,18 +524,18 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
           <div class="rc-item"><label for="w-budget">BUDGET FLEXIBILITY</label>
             <select id="w-budget"><option>Low</option><option>Medium</option><option selected>High</option></select></div>
         </div>
-        <div class="rc-hint">Each AI analysis receives only the signals relevant to its reasoning task. Buyer Intent applies to all analyses. The preview below shows which signals will be applied — hover different buttons to compare, or click "adjust weights ↑" to change priorities.</div>
+        <div class="rc-hint">Each AI analysis receives only the signals relevant to its reasoning task. Buyer Intent applies to all analyses. Hover any AI button to see its signals in the panel below — or click "adjust weights ↑" to change priorities.</div>
       </div>
     </div>
 
     <!-- AI PURCHASE ANALYST
-         Hover any button to see a signal preview before clicking (no API call).
          Analyze ↗        — all 8 signals, two-call RAG pipeline
          Best value ↗     — bracket risk, travel, rivalry, budget, intent
          Resale risk ↗    — bracket risk, travel, liquidity, price trend, intent
          Simulation ↗     — price trend, days remaining, bracket risk, intent
          Scenario risk ↗  — same as resale risk
-         All results display in #ai-output with a signal context card. -->
+         mouseenter any button → setActiveBtn() updates Signals Applied panel
+         and button highlight (sticky — no mouseleave reset). -->
     <div class="ai-panel">
       <div style="font-size:11px;color:var(--color-text-secondary);letter-spacing:.4px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">
         <span><span class="ai-dot"></span>AI PURCHASE ANALYST</span>
@@ -545,19 +544,18 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
       <div id="ai-output">
         <span class="ai-placeholder">Select a match and click Analyze for a RAG-grounded, signal-weighted buy recommendation.</span>
       </div>
-      <!-- Signal preview slot — shows analyze signals by default on load.
-           Updates on button hover; returns to analyze default on mouseout.
-           Fully hidden by clearPreview() before any result renders. -->
-      <div class="ai-preview" id="ai-preview"></div>
+      <!-- Signals Applied — permanent panel, always visible. Updates on button
+           mouseenter (sticky). Resets to Analyze on load and match select. -->
+      <div class="sig-ctx" id="sig-panel"></div>
       <div class="ai-actions">
-        <button class="ai-btn primary" id="analyze-btn"
-          onmouseenter="showPreview('analyze')" onmouseleave="hidePreview()"
+        <button class="ai-btn" id="analyze-btn"
+          onmouseenter="setActiveBtn('analyze')"
           onclick="runAnalysis()">Analyze ↗</button>
         <button class="ai-btn" id="best-value-btn"
-          onmouseenter="showPreview('bestValue')" onmouseleave="hidePreview()"
+          onmouseenter="setActiveBtn('bestValue')"
           onclick="askBestValue()">Best value ↗</button>
         <button class="ai-btn" id="resale-risk-btn"
-          onmouseenter="showPreview('resaleRisk')" onmouseleave="hidePreview()"
+          onmouseenter="setActiveBtn('resaleRisk')"
           onclick="askResaleRisk()">Resale risk ↗</button>
       </div>
     </div>
@@ -593,7 +591,7 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
           <span class="ai-placeholder">Click "Analyze portfolio" for a cross-match buy-priority ranking and risk assessment.</span>
         </div>
         <div class="ai-actions" style="margin-top:10px">
-          <button class="ai-btn primary" id="port-analyze-btn" onclick="analyzePortfolio()">Analyze portfolio ↗</button>
+          <button class="ai-btn" id="port-analyze-btn" onclick="analyzePortfolio()">Analyze portfolio ↗</button>
           <button class="ai-btn" id="port-risk-btn" onclick="askPortfolioRisk()">Risk breakdown ↗</button>
         </div>
       </div>
@@ -710,16 +708,15 @@ function getMetrics(m){
 /* =============================================================================
    SIGNAL WEIGHTS — context-aware injection
 
-   SIGNAL_CONTEXTS     — maps each analysis type to its relevant signal keys
-   SIGNAL_LABELS       — human-readable display names for each key
-   getWeights()        — reads current values from all weight controls
+   SIGNAL_CONTEXTS   — maps each analysis type to its relevant signal keys
+   SIGNAL_LABELS     — human-readable display names for each key
+   AI_BTN_IDS        — button ID map for the three primary AI buttons
+   AI_BTN_LABELS     — display labels for those buttons
+   getWeights()      — reads current values from all weight controls
    buildSignalContext() — serializes relevant subset into prompt text
-   buildChips()        — shared chip builder for both card variants
-   renderSignalCtx()   — post-result card (solid blue left border)
-   renderPreviewCtx()  — hover preview card (dashed border, adjust-weights link)
-   showPreview()       — populates #ai-preview on button mouseenter
-   hidePreview()       — clears #ai-preview on button mouseleave
-   openSignalWeights() — opens collapsible and scrolls to it
+   buildChips()      — builds signal chip HTML for a given analysis type
+   setActiveBtn()    — updates button highlight + Signals Applied panel (sticky)
+   openSignalWeights() — opens Signal Weights collapsible and scrolls to it
    ============================================================================= */
 
 const SIGNAL_CONTEXTS={
@@ -754,7 +751,7 @@ function buildSignalContext(analysisType){
   return`User-configured signal priorities (${analysisType} analysis):\n${keys.map(k=>`- ${SIGNAL_LABELS[k]}: ${w[k]}`).join('\n')}`;
 }
 
-/* Shared chip builder — used by both post-result and preview cards */
+/* Build signal chips for the given analysis type */
 function buildChips(analysisType){
   const w=getWeights(),keys=SIGNAL_CONTEXTS[analysisType]||[];
   return keys.map(k=>{
@@ -763,34 +760,22 @@ function buildChips(analysisType){
   }).join('');
 }
 
-/* Post-result card — solid blue left border, rendered after an AI result completes */
-function renderSignalCtx(analysisType){
-  return`<div class="sig-ctx"><div class="sig-ctx-hdr"><span class="sig-ctx-lbl">Signals applied · ${analysisType}</span></div><div class="sig-chips">${buildChips(analysisType)}</div></div>`;
-}
+/* Button ID map for the three primary AI buttons */
+const AI_BTN_IDS={analyze:'analyze-btn',bestValue:'best-value-btn',resaleRisk:'resale-risk-btn'};
+const AI_BTN_LABELS={analyze:'Analyze',bestValue:'Best value',resaleRisk:'Resale risk'};
 
-/* Preview card — dashed border, shown on button hover BEFORE an API call.
-   Includes "adjust weights ↑" link that opens the Signal Weights panel. */
-function renderPreviewCtx(analysisType){
-  const labels={analyze:'Analyze',bestValue:'Best value',resaleRisk:'Resale risk'};
-  const label=labels[analysisType]||analysisType;
-  return`<div class="sig-ctx preview"><div class="sig-ctx-hdr"><span class="sig-ctx-lbl">Signals if you click · ${label}</span><button class="sig-ctx-adj" onclick="openSignalWeights()">adjust weights ↑</button></div><div class="sig-chips">${buildChips(analysisType)}</div></div>`;
-}
-
-/* Populate #ai-preview with the preview card for the given analysis type */
-function showPreview(analysisType){
-  const el=document.getElementById('ai-preview');
-  el.innerHTML=renderPreviewCtx(analysisType);
-  el.classList.add('visible');
-}
-
-/* On mouseleave, return to the default analyze preview rather than hiding */
-function hidePreview(){showPreview('analyze');}
-
-/* Fully hide preview slot before a result renders — called by AI handlers */
-function clearPreview(){
-  const el=document.getElementById('ai-preview');
-  el.classList.remove('visible');
-  el.innerHTML='';
+/* Update Signals Applied panel and button highlight — sticky (no mouseleave reset).
+   Called on mouseenter and on load/selectMatch() to set the default. */
+function setActiveBtn(analysisType){
+  // Update button highlights
+  Object.entries(AI_BTN_IDS).forEach(([type,id])=>{
+    const el=document.getElementById(id);
+    if(el)el.classList.toggle('active',type===analysisType);
+  });
+  // Update permanent Signals Applied panel
+  const label=AI_BTN_LABELS[analysisType]||analysisType;
+  document.getElementById('sig-panel').innerHTML=
+    `<div class="sig-ctx-hdr"><span class="sig-ctx-lbl">Signals applied · ${label}</span><button class="sig-ctx-adj" onclick="openSignalWeights()">adjust weights ↑</button></div><div class="sig-chips">${buildChips(analysisType)}</div>`;
 }
 
 /* Open Signal Weights collapsible and smooth-scroll to it */
@@ -914,13 +899,13 @@ async function analyzePortfolio(){
   const details=items.map(m=>{const met=getMetrics(m);const days=daysUntil(m.dayOffset);
     return`${m.teams[0]} vs ${m.teams[1]} (${m.stage}, ${m.stadium.city.split(',')[0]}, ${cat} face $${faceValFor(m,cat)}, resale $${resalePriceFor(m,cat)}, +${met.markup}% markup, ${days} days, ${m.demand} demand)`;}).join('; ');
   const signals=buildSignalContext('bestValue');
-  out.innerHTML=renderSignalCtx('bestValue')+'<span style="color:var(--color-text-secondary);font-size:13px">Analyzing portfolio...</span>';
+  out.innerHTML='<span style="color:var(--color-text-secondary);font-size:13px">Analyzing portfolio...</span>';
   setAiBtnsDisabled(true);
   try{
     const text=await callClaude(`You are a sports ticket market analyst reviewing a WC2026 watchlist.\n\nPortfolio: ${items.length} matches | Total ${cat} face: $${tFv.toLocaleString()} | Total resale: $${tRes.toLocaleString()}\nMatches: ${details}\n\n${signals}\n\nAnalyze this portfolio: which to buy first, which can wait, biggest price risk, is total spend reasonable? Frame advice for the buyer's intent. Under 200 words.`);
-    out.innerHTML=renderSignalCtx('bestValue')+`<div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${text}</div>`;
+    out.innerHTML=`<div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${text}</div>`;
   } catch(e){
-    out.innerHTML=renderSignalCtx('bestValue')+`<span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;
+    out.innerHTML=`<span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;
   }
   setAiBtnsDisabled(false);
 }
@@ -934,13 +919,13 @@ async function askPortfolioRisk(){
   const prompt=extreme.length
     ?`My WC2026 watchlist includes high-risk matches: ${extreme.map(m=>{const met=getMetrics(m);return`${m.teams[0]} vs ${m.teams[1]} (${m.stage}, +${met.markup}% markup)`;}).join(', ')}.\n\n${signals}\n\nWhat specific price spike scenarios should I prepare for? Frame for buyer's intent. Under 150 words.`
     :`My WC2026 watchlist has no extreme-demand matches. What are general price risks?\n\n${signals}\n\nUnder 150 words.`;
-  out.innerHTML=renderSignalCtx('resaleRisk')+'<span style="color:var(--color-text-secondary);font-size:13px">Analyzing portfolio risk...</span>';
+  out.innerHTML='<span style="color:var(--color-text-secondary);font-size:13px">Analyzing portfolio risk...</span>';
   setAiBtnsDisabled(true);
   try{
     const text=await callClaude(prompt);
-    out.innerHTML=renderSignalCtx('resaleRisk')+`<div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${text}</div>`;
+    out.innerHTML=`<div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${text}</div>`;
   } catch(e){
-    out.innerHTML=renderSignalCtx('resaleRisk')+`<span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;
+    out.innerHTML=`<span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;
   }
   setAiBtnsDisabled(false);
 }
@@ -1135,7 +1120,7 @@ function selectMatch(id){
   renderMatchList();renderAll();
   document.getElementById('ai-output').innerHTML='<span class="ai-placeholder">Click Analyze for a RAG-grounded recommendation, or open Simulation for forward price projection.</span>';
   if(collState.sim)renderSimChart();
-  showPreview('analyze'); // refresh default preview for new match context
+  setActiveBtn('analyze'); // reset Signals Applied panel on match change
 }
 
 /* =============================================================================
@@ -1257,7 +1242,7 @@ async function analyzeSimulation(){
   const pesP=projectScenario(cr,days,'pessimistic',p);
   const optDay=findOptimalBuyDay(baseP);
   const signals=buildSignalContext('simulation');
-  out.innerHTML=renderSignalCtx('simulation')+'<span style="color:var(--color-text-secondary);font-size:13px">Analyzing simulation scenarios...</span>';
+  out.innerHTML='<span style="color:var(--color-text-secondary);font-size:13px">Analyzing simulation scenarios...</span>';
   setAiBtnsDisabled(true);
   try{
     const text=await callClaude(`You are a sports ticket market analyst reviewing a price simulation.
@@ -1276,19 +1261,18 @@ ${signals}
     let bc='badge-wait',bt='WAIT';
     if(text.toLowerCase().includes('buy now')||text.toLowerCase().includes('buy within')){bc='badge-buy';bt='BUY NOW';}
     if(text.toLowerCase().includes('urgent')){bc='badge-urgent';bt='URGENT';}
-    out.innerHTML=`${renderSignalCtx('simulation')}<div class="rec-badge ${bc}">${bt}</div><div class="signal-row"><span class="signal">simulation</span><span class="signal">Cat 3</span><span class="signal">base→$${baseP[days-1].toLocaleString()}</span><span class="signal">worst→$${pesP[days-1].toLocaleString()}</span><span class="signal">spread $${(pesP[days-1]-optP[days-1]).toLocaleString()}</span></div><div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${text}</div>`;
-  } catch(e){out.innerHTML=`${renderSignalCtx('simulation')}<div class="rec-badge badge-wait">—</div><span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;}
+    out.innerHTML=`<div class="rec-badge ${bc}">${bt}</div><div class="signal-row"><span class="signal">simulation</span><span class="signal">Cat 3</span><span class="signal">base→$${baseP[days-1].toLocaleString()}</span><span class="signal">worst→$${pesP[days-1].toLocaleString()}</span><span class="signal">spread $${(pesP[days-1]-optP[days-1]).toLocaleString()}</span></div><div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${text}</div>`;
+  } catch(e){out.innerHTML=`<div class="rec-badge badge-wait">—</div><span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;}
   setAiBtnsDisabled(false);
 }
 
 /* Scenario risk — resaleRisk signal context, displays in AI panel */
 async function askScenarioRisk(){
-  clearPreview();
   const out=document.getElementById('ai-output');
   const days=daysUntil(selectedMatch.dayOffset),cr=resalePriceFor(selectedMatch,'Cat 3');
   const p=getSimParams(),baseP=projectScenario(cr,days,'base',p),pesP=projectScenario(cr,days,'pessimistic',p);
   const signals=buildSignalContext('resaleRisk');
-  out.innerHTML=renderSignalCtx('resaleRisk')+'<span style="color:var(--color-text-secondary);font-size:13px">Analyzing scenario risk...</span>';
+  out.innerHTML='<span style="color:var(--color-text-secondary);font-size:13px">Analyzing scenario risk...</span>';
   setAiBtnsDisabled(true);
   try{
     const text=await callClaude(`WC2026 scenario risk analysis for ${selectedMatch.teams[0]} vs ${selectedMatch.teams[1]} (${selectedMatch.stage}, Cat 3).
@@ -1298,14 +1282,13 @@ Base case at match day: $${baseP[days-1].toLocaleString()}, worst case: $${pesP[
 ${signals}
 
 What real-world signals indicate we're moving toward the worst case? Frame for buyer's intent. Under 200 words.`);
-    out.innerHTML=`${renderSignalCtx('resaleRisk')}<div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${text}</div>`;
-  } catch(e){out.innerHTML=`${renderSignalCtx('resaleRisk')}<span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;}
+    out.innerHTML=`<div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${text}</div>`;
+  } catch(e){out.innerHTML=`<span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;}
   setAiBtnsDisabled(false);
 }
 
 /* Main analysis — RAG pipeline: retrieval → grounded analysis, all 8 signals */
 async function runAnalysis(){
-  clearPreview(); // hide preview before result renders
   const out=document.getElementById('ai-output');
   const met=getMetrics(selectedMatch),days=daysUntil(selectedMatch.dayOffset);
   const cat=selectedCat==='All'?'Cat 3':selectedCat;
@@ -1314,7 +1297,7 @@ async function runAnalysis(){
     ?`All categories — Cat 3 reference: face $${met.fvCat3}, resale $${met.resCat3}; full range $${met.fvCat4}–$${met.fvCat1} face / $${met.resCat4}–$${met.resCat1} resale`
     :`${selectedCat}: face $${fv}, resale $${rp}`;
   const signals=buildSignalContext('analyze');
-  out.innerHTML=`${renderSignalCtx('analyze')}<div class="rag-step active"><span style="font-size:13px">⟳</span><span class="rag-step-lbl">Step 1 — Retrieving context:</span><span class="rag-step-content">Fetching team form for ${selectedMatch.teams[0]} and ${selectedMatch.teams[1]}...</span></div>`;
+  out.innerHTML=`<div class="rag-step active"><span style="font-size:13px">⟳</span><span class="rag-step-lbl">Step 1 — Retrieving context:</span><span class="rag-step-content">Fetching team form for ${selectedMatch.teams[0]} and ${selectedMatch.teams[1]}...</span></div>`;
   setAiBtnsDisabled(true);
   let rag='';
   try{
@@ -1327,7 +1310,7 @@ async function runAnalysis(){
 - Any injury concerns (1 sentence)
 
 Under 150 words. Factual only.`);
-    out.innerHTML=`${renderSignalCtx('analyze')}<div class="rag-step done"><span style="font-size:13px">✓</span><span class="rag-step-lbl">Step 1 — Context retrieved</span><span class="rag-step-content"><span class="rag-ctx-tog" onclick="toggleRagCtx(this)">show retrieved context ▼</span><div class="rag-ctx-body" style="display:none">${rag}</div></span></div><div class="rag-step active"><span style="font-size:13px">⟳</span><span class="rag-step-lbl">Step 2 — Analyzing:</span><span class="rag-step-content">Generating signal-weighted recommendation...</span></div>`;
+    out.innerHTML=`<div class="rag-step done"><span style="font-size:13px">✓</span><span class="rag-step-lbl">Step 1 — Context retrieved</span><span class="rag-step-content"><span class="rag-ctx-tog" onclick="toggleRagCtx(this)">show retrieved context ▼</span><div class="rag-ctx-body" style="display:none">${rag}</div></span></div><div class="rag-step active"><span style="font-size:13px">⟳</span><span class="rag-step-lbl">Step 2 — Analyzing:</span><span class="rag-step-content">Generating signal-weighted recommendation...</span></div>`;
     /* CALL 2: Grounded analysis — injects retrieved context + price data + all 8 signals */
     const rec=await callClaude(`You are a sports ticket market analyst.
 
@@ -1350,8 +1333,8 @@ Under 200 words.`);
     let bc='badge-wait',bt='WAIT';
     if(rec.toLowerCase().includes('buy now')){bc='badge-buy';bt='BUY NOW';}
     if(rec.toLowerCase().includes('urgent')){bc='badge-urgent';bt='URGENT';}
-    out.innerHTML=`${renderSignalCtx('analyze')}<div class="rag-step done"><span style="font-size:13px">✓</span><span class="rag-step-lbl">Step 1 — Context retrieved</span><span class="rag-step-content"><span class="rag-ctx-tog" onclick="toggleRagCtx(this)">show retrieved context ▼</span><div class="rag-ctx-body" style="display:none">${rag}</div></span></div><div class="rag-step done"><span style="font-size:13px">✓</span><span class="rag-step-lbl">Step 2 — Analysis complete</span><span class="rag-step-content">All 8 signals applied · buyer intent: ${getWeights().buyerIntent}</span></div><div class="rec-badge ${bc}">${bt}</div><div class="signal-row"><span class="signal">${selectedMatch.stage}</span><span class="signal">${selectedCat}</span><span class="signal">markup +${met.markup}%</span><span class="signal">${days}d to match</span><span class="signal">${getWeights().buyerIntent}</span></div><div style="font-size:13px;line-height:1.7;color:var(--color-text-primary);white-space:pre-line">${rec}</div>`;
-  } catch(e){out.innerHTML=`${renderSignalCtx('analyze')}<div class="rec-badge badge-wait">—</div><span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;}
+    out.innerHTML=`<div class="rag-step done"><span style="font-size:13px">✓</span><span class="rag-step-lbl">Step 1 — Context retrieved</span><span class="rag-step-content"><span class="rag-ctx-tog" onclick="toggleRagCtx(this)">show retrieved context ▼</span><div class="rag-ctx-body" style="display:none">${rag}</div></span></div><div class="rag-step done"><span style="font-size:13px">✓</span><span class="rag-step-lbl">Step 2 — Analysis complete</span><span class="rag-step-content">All 8 signals applied · buyer intent: ${getWeights().buyerIntent}</span></div><div class="rec-badge ${bc}">${bt}</div><div class="signal-row"><span class="signal">${selectedMatch.stage}</span><span class="signal">${selectedCat}</span><span class="signal">markup +${met.markup}%</span><span class="signal">${days}d to match</span><span class="signal">${getWeights().buyerIntent}</span></div><div style="font-size:13px;line-height:1.7;color:var(--color-text-primary);white-space:pre-line">${rec}</div>`;
+  } catch(e){out.innerHTML=`<div class="rec-badge badge-wait">—</div><span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;}
   setAiBtnsDisabled(false);
 }
 
@@ -1359,11 +1342,10 @@ function toggleRagCtx(el){const b=el.nextElementSibling;const open=b.style.displ
 
 /* Best Value — bestValue signal context, displays in AI panel */
 async function askBestValue(){
-  clearPreview();
   const out=document.getElementById('ai-output');
   const top5=[...ALL_MATCHES].sort((a,b)=>resalePrice(a)-resalePrice(b)).slice(0,5);
   const signals=buildSignalContext('bestValue');
-  out.innerHTML=renderSignalCtx('bestValue')+'<span style="color:var(--color-text-secondary);font-size:13px">Comparing best value matches...</span>';
+  out.innerHTML='<span style="color:var(--color-text-secondary);font-size:13px">Comparing best value matches...</span>';
   setAiBtnsDisabled(true);
   try{
     const text=await callClaude(`You are a sports ticket market analyst comparing WC2026 value.
@@ -1373,18 +1355,17 @@ Matches (Cat 3): ${top5.map(m=>{const met=getMetrics(m);return`${m.teams[0]} vs 
 ${signals}
 
 Which match offers the best value and why? Frame the analysis for the buyer's intent. Include a ranking and specific recommendation. Under 200 words.`);
-    out.innerHTML=`${renderSignalCtx('bestValue')}<div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${text}</div>`;
-  } catch(e){out.innerHTML=`${renderSignalCtx('bestValue')}<span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;}
+    out.innerHTML=`<div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${text}</div>`;
+  } catch(e){out.innerHTML=`<span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;}
   setAiBtnsDisabled(false);
 }
 
 /* Resale Risk — resaleRisk signal context, displays in AI panel */
 async function askResaleRisk(){
-  clearPreview();
   const out=document.getElementById('ai-output');
   const late=ALL_MATCHES.filter(m=>m.stage==='Final'||m.stage==='Semifinal');
   const signals=buildSignalContext('resaleRisk');
-  out.innerHTML=renderSignalCtx('resaleRisk')+'<span style="color:var(--color-text-secondary);font-size:13px">Analyzing resale risk...</span>';
+  out.innerHTML='<span style="color:var(--color-text-secondary);font-size:13px">Analyzing resale risk...</span>';
   setAiBtnsDisabled(true);
   try{
     const text=await callClaude(`You are a sports ticket market analyst assessing WC2026 resale risk.
@@ -1394,8 +1375,8 @@ Late-stage matches (Cat 3): ${late.map(m=>{const met=getMetrics(m);return`${m.te
 ${signals}
 
 Explain the resale risk and optimal buy timing for each. Frame for buyer's intent. Under 250 words.`);
-    out.innerHTML=`${renderSignalCtx('resaleRisk')}<div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${text}</div>`;
-  } catch(e){out.innerHTML=`${renderSignalCtx('resaleRisk')}<span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;}
+    out.innerHTML=`<div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${text}</div>`;
+  } catch(e){out.innerHTML=`<span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;}
   setAiBtnsDisabled(false);
 }
 
@@ -1408,7 +1389,7 @@ populateFilters();
 populateAlertMatchSel();
 applyFilters();
 selectMatch(ALL_MATCHES[0].id);
-showPreview('analyze'); // show default analyze preview on load
+setActiveBtn('analyze'); // initialize Signals Applied panel
 renderAlertList();
 renderNotifTray();
 updatePermUI();

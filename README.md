@@ -127,6 +127,26 @@ On Vercel, `callClaude()` auto-routes to `POST /api/analyze` instead of calling 
 
 ## Changelog
 
+**v14**
+- Signals Applied card (`#sig-applied`) is now a permanent fixture between the AI output and the action buttons — always visible, never hidden
+- Removed "Signals if you click" preview card and all associated preview machinery (`renderPreviewCtx`, `showPreview`, `hidePreview`, `clearPreview`, `#ai-preview` slot)
+- Button hover now updates the Signals Applied card and highlights the hovered button — highlight is sticky, staying on the last-hovered button until another is hovered or a match is selected
+- Button active state driven by `setActiveAiBtn()` — same pattern as category buttons. Default is Analyze on load and on `selectMatch()`
+- `AI_BTN_IDS` map and `updateSignalCtx()` replace the preview system; `renderSignalCtx()` removed (no longer prepended to result HTML)
+- Code cleanup: removed unused `faceVal()`, `IN_CLAUDE`, `let buyerIntent`, `vol` and `demandBoost` match properties
+
+**v14**
+- "Signals if you click" preview card removed — replaced by the always-visible Signals Applied panel
+- Signals Applied panel (`#sig-panel`) is now permanent — sits above the AI action buttons at all times
+- `setActiveBtn(analysisType)` updates both the panel content and the active button highlight in one call — sticky, no mouseleave reset
+- Button highlight (filled/reversed) now follows `mouseenter` rather than being hardcoded on Analyze — default is still Analyze on load and match select
+- `.ai-btn.active` replaces `.ai-btn.primary` in CSS; all buttons start unstyled, JS applies `.active` class
+- `showPreview()`, `hidePreview()`, `clearPreview()`, `renderPreviewCtx()` removed entirely
+- `renderSignalCtx()` removed — signal context is now shown exclusively in the permanent panel, not embedded in result HTML
+- `AI_BTN_IDS` and `AI_BTN_LABELS` constants added for clean button → type mapping
+- `clearPreview()` calls removed from all AI handlers (no longer needed)
+- `sig-ctx.preview`, `.ai-preview` CSS removed; `.ai-btn.primary` CSS replaced with `.ai-btn.active`
+
 **v13**
 - Signal preview card is now shown by default on load and on every match select — users see the Analyze signal context immediately without hovering
 - `hidePreview()` now returns to the default Analyze preview instead of hiding the slot — hovering away from a button restores the baseline state
