@@ -814,11 +814,8 @@ function openSignalWeights(){
 
 /* Format AI result text — paragraph breaks, line breaks, **bold** markdown */
 function formatText(t){
-  return t.split('
-
-').map(p=>
-    `<p style="margin-bottom:.7em">${p.replace(/
-/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')}</p>`
+  return t.split('\n\n').map(p=>
+    `<p style="margin-bottom:.7em">${p.replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')}</p>`
   ).join('');
 }
 
