@@ -127,6 +127,15 @@ On Vercel, `callClaude()` auto-routes to `POST /api/analyze` instead of calling 
 
 ## Changelog
 
+**v12**
+- Signal preview on button hover — Analyze, Best Value, and Resale Risk buttons show a preview card with the signals that will be applied before any API call is made
+- Preview card uses a dashed border to distinguish from post-result cards; clears automatically on mouseout
+- "adjust weights ↑" link inside each preview card opens the Signal Weights panel and scrolls to it
+- `buildChips()` extracted as shared helper — used by both post-result and preview cards
+- `showPreview()` / `hidePreview()` / `renderPreviewCtx()` / `openSignalWeights()` added
+- `hidePreview()` called at the start of each AI handler so the preview clears before the result renders
+- Signal Weights collapsible gets `id="rc-coll"` for `scrollIntoView` target
+
 **v11**
 - Star button (★) renders amber (#F5A623) when active — visible in dark and light mode
 - All five secondary AI buttons (Best Value, Resale Risk, Scenario Risk, Analyze Portfolio, Risk Breakdown) now route through `callClaude()` and display results directly in the AI panel
