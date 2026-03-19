@@ -62,7 +62,7 @@ Users configure eight signals that inject into each AI analysis. Signals are con
 
 ## Running locally
 
-1. Download `index.html` (rename from `wc2026_ticket_tracker_v14.html`)
+1. Download `index.html` (rename from `wc2026_ticket_tracker_v15.html`)
 2. Open in any modern browser
 3. Paste your Anthropic API key (`sk-ant-...`) into the key field at the top
 4. All features work — AI buttons call the Anthropic API directly from the browser
@@ -77,7 +77,7 @@ No build step, no dependencies, no server required for local use.
 
 ```
 your-project/
-  index.html          ← rename the v14 HTML file to this
+  index.html          ← rename the v15 HTML file to this
   api/
     analyze.js        ← Vercel serverless proxy (unchanged since v8)
   README.md
@@ -108,6 +108,7 @@ On Vercel, `callClaude()` auto-routes to `POST /api/analyze` instead of calling 
 | Price history | `generatePrices()` synthetic curves | Scraped from StubHub, SeatGeek, FIFA resale |
 | API key | Browser input / Vercel env var | Vercel env var only (remove input field) |
 | Alert delivery | Browser notifications only | + Twilio SMS / SendGrid email |
+| Price data (alerts) | Static seeded prices — `checkAlerts()` evaluates fixed values | Add `setInterval` random walk for live demo; real scraper for production |
 | RAG retrieval | Claude's training knowledge | Vector DB (Pinecone/Supabase) over live news corpus |
 
 ---
@@ -125,6 +126,15 @@ On Vercel, `callClaude()` auto-routes to `POST /api/analyze` instead of calling 
 ---
 
 ## Changelog
+
+**v15**
+- Signal Weights collapsible moved above the nav tabs — now globally accessible from both Tracker and Portfolio views; single set of form inputs, no duplicate IDs
+- Portfolio AI Summary gains Signals Applied card and button hover highlight, matching Tracker behavior — `setPortActiveBtn()` mirrors `setActiveBtn()` for portfolio context
+- Portfolio defaults: Analyze portfolio → `bestValue` signals, Risk breakdown → `resaleRisk` signals; resets on view switch
+- `formatText()` added — formats all AI result text with paragraph breaks (`\n\n` → `<p>`), line breaks (`\n` → `<br>`), and `**bold**` markdown; applied to all seven result rendering callsites
+- `sigCardHTML()` extracted as shared inner renderer used by both `setActiveBtn()` and `setPortActiveBtn()`
+- Code cleanup: removed leftover `let buyerIntent` variable (value was always read from hidden input via `getWeights()`); removed unused `btn` variable from `analyzeSimulation()`; removed `white-space:pre-line` from result div (superseded by `formatText()`)
+- Production Upgrade Path: noted that `checkAlerts()` evaluates against static seeded prices; a `setInterval` random walk can be added for demo purposes to make alerts triggerable during a session
 
 **v14**
 - Signals Applied card (`#sig-applied`) is now a permanent fixture between the AI output and the action buttons — always visible, never hidden
