@@ -12,7 +12,7 @@ AI-powered price tracker and purchase advisor for World Cup 2026 tickets. Built 
 - Forward-looking scenario simulation with three projected price paths to match day
 - AI Purchase Analyst powered by Claude — RAG retrieval + signal-weighted analysis
 - All five AI buttons display results directly in the app — no clipboard, no tab switching
-- Signal context card shown before every AI result — which signals were applied and at what weight
+- Signals Applied card always visible — updates on button hover, shows which signals are active
 - Portfolio/watchlist with cross-match spend totals and AI buy-priority ranking
 - User-configurable signal weights including Buyer Intent toggle (Attend vs. Speculative)
 
@@ -29,13 +29,12 @@ Layer 2 — Application (browser, stateful JS)
   Filters · Category selector · Chart · Alert engine
   Watchlist · Portfolio · Scenario simulation · Notifications
 
-Layer 3 — AI (two sub-layers)
-  3a: Embedded inference — callClaude() routes to:
-      · Vercel: POST /api/analyze (key server-side, never in browser)
-      · Local:  direct Anthropic API call (key from input field)
-      Analyze: two sequential calls — RAG retrieval → grounded analysis
-      All other AI buttons: single call, results displayed in AI panel
-  3b: Conversational handoff — sendPrompt() when running in claude.ai
+Layer 3 — AI (embedded inference)
+  callClaude() routes to:
+    · Vercel: POST /api/analyze (key server-side, never in browser)
+    · Local:  direct Anthropic API call (key from input field)
+  Analyze: two sequential calls — RAG retrieval → grounded analysis
+  All other AI buttons: single call, results displayed in AI panel
 
 Layer 4 — Simulation
   Forward price projection: base / best / worst case scenarios
@@ -46,7 +45,7 @@ Layer 4 — Simulation
 
 ## Signal weights
 
-Users configure eight signals that inject into each AI analysis. Signals are context-aware — each analysis type only receives the subset relevant to its reasoning task. A signal context card is rendered before every AI result showing exactly which signals were applied.
+Users configure eight signals that inject into each AI analysis. Signals are context-aware — each analysis type only receives the subset relevant to its reasoning task. The Signals Applied card above the action buttons always shows which signals are active for the currently selected analysis.
 
 | Signal | Analyze | Simulation | Best Value | Resale Risk |
 |---|---|---|---|---|
@@ -63,7 +62,7 @@ Users configure eight signals that inject into each AI analysis. Signals are con
 
 ## Running locally
 
-1. Download `index.html` (rename from `wc2026_ticket_tracker_v11.html`)
+1. Download `index.html` (rename from `wc2026_ticket_tracker_v14.html`)
 2. Open in any modern browser
 3. Paste your Anthropic API key (`sk-ant-...`) into the key field at the top
 4. All features work — AI buttons call the Anthropic API directly from the browser
@@ -78,7 +77,7 @@ No build step, no dependencies, no server required for local use.
 
 ```
 your-project/
-  index.html          ← rename the v11 HTML file to this
+  index.html          ← rename the v14 HTML file to this
   api/
     analyze.js        ← Vercel serverless proxy (unchanged since v8)
   README.md
@@ -129,48 +128,32 @@ On Vercel, `callClaude()` auto-routes to `POST /api/analyze` instead of calling 
 
 **v14**
 - Signals Applied card (`#sig-applied`) is now a permanent fixture between the AI output and the action buttons — always visible, never hidden
-- Removed "Signals if you click" preview card and all associated preview machinery (`renderPreviewCtx`, `showPreview`, `hidePreview`, `clearPreview`, `#ai-preview` slot)
-- Button hover now updates the Signals Applied card and highlights the hovered button — highlight is sticky, staying on the last-hovered button until another is hovered or a match is selected
-- Button active state driven by `setActiveAiBtn()` — same pattern as category buttons. Default is Analyze on load and on `selectMatch()`
-- `AI_BTN_IDS` map and `updateSignalCtx()` replace the preview system; `renderSignalCtx()` removed (no longer prepended to result HTML)
+- Removed "Signals if you click" preview card and all associated machinery (`renderPreviewCtx`, `showPreview`, `hidePreview`, `clearPreview`, `#ai-preview` slot, `.sig-ctx.preview` CSS)
+- Button hover updates the Signals Applied card and highlights the hovered button via `setActiveAiBtn()` — highlight is sticky, staying on the last-hovered button until another is hovered or a match is selected
+- `.ai-btn.active` replaces `.ai-btn.primary`; all button state is now JS-driven, consistent with category button pattern
+- `renderSignalCtx()` removed — signal context is shown exclusively in the permanent panel, not embedded in result HTML
 - Code cleanup: removed unused `faceVal()`, `IN_CLAUDE`, `let buyerIntent`, `vol` and `demandBoost` match properties
 
-**v14**
-- "Signals if you click" preview card removed — replaced by the always-visible Signals Applied panel
-- Signals Applied panel (`#sig-panel`) is now permanent — sits above the AI action buttons at all times
-- `setActiveBtn(analysisType)` updates both the panel content and the active button highlight in one call — sticky, no mouseleave reset
-- Button highlight (filled/reversed) now follows `mouseenter` rather than being hardcoded on Analyze — default is still Analyze on load and match select
-- `.ai-btn.active` replaces `.ai-btn.primary` in CSS; all buttons start unstyled, JS applies `.active` class
-- `showPreview()`, `hidePreview()`, `clearPreview()`, `renderPreviewCtx()` removed entirely
-- `renderSignalCtx()` removed — signal context is now shown exclusively in the permanent panel, not embedded in result HTML
-- `AI_BTN_IDS` and `AI_BTN_LABELS` constants added for clean button → type mapping
-- `clearPreview()` calls removed from all AI handlers (no longer needed)
-- `sig-ctx.preview`, `.ai-preview` CSS removed; `.ai-btn.primary` CSS replaced with `.ai-btn.active`
-
 **v13**
-- Signal preview card is now shown by default on load and on every match select — users see the Analyze signal context immediately without hovering
-- `hidePreview()` now returns to the default Analyze preview instead of hiding the slot — hovering away from a button restores the baseline state
-- `clearPreview()` added — fully hides the preview slot before any AI result renders, replacing the `hidePreview()` calls inside AI handlers
-- `showPreview('analyze')` called in `selectMatch()` so the preview refreshes with current match context on each selection
-- Updated rc-hint copy to describe the always-visible preview behavior
+- Signal preview card shown by default on load and on every match select
+- `hidePreview()` returned to analyze default instead of hiding; `clearPreview()` added for AI handlers
+- `showPreview('analyze')` called in `selectMatch()` to keep preview current with selected match
 
 **v12**
-- Signal preview on button hover — Analyze, Best Value, and Resale Risk buttons show a preview card with the signals that will be applied before any API call is made
-- Preview card uses a dashed border to distinguish from post-result cards; clears automatically on mouseout
-- "adjust weights ↑" link inside each preview card opens the Signal Weights panel and scrolls to it
-- `buildChips()` extracted as shared helper — used by both post-result and preview cards
-- `showPreview()` / `hidePreview()` / `renderPreviewCtx()` / `openSignalWeights()` added
-- `hidePreview()` called at the start of each AI handler so the preview clears before the result renders
+- Signal preview on button hover — shows signals that will be applied before any API call
+- Preview card uses dashed border to distinguish from post-result cards
+- "adjust weights ↑" link opens Signal Weights panel and scrolls to it
+- `buildChips()` extracted as shared helper; `openSignalWeights()` added
 - Signal Weights collapsible gets `id="rc-coll"` for `scrollIntoView` target
 
 **v11**
-- Star button (★) renders amber (#F5A623) when active — visible in dark and light mode
-- All five secondary AI buttons (Best Value, Resale Risk, Scenario Risk, Analyze Portfolio, Risk Breakdown) now route through `callClaude()` and display results directly in the AI panel
-- Signal context card rendered before every AI result — color-coded chips show which signals were applied (blue = High priority, green = Buyer intent)
-- `setAiBtnsDisabled()` disables all AI buttons during active calls to prevent concurrent requests
-- Graceful try/catch around chart renders — CDN failure no longer halts app execution
-- Accessibility: `aria-label` on all filter selects and star buttons; proper `for`/`id` label associations on form fields
-- Favicon 404 suppressed with inline data URI `<link rel="icon" href="data:,">`
+- Star button (★) renders amber (#F5A623) — visible in dark and light mode
+- All five AI buttons route through `callClaude()`, results display in AI panel
+- Signal context card before every AI result — color-coded chips (blue = High, green = Buyer intent)
+- `setAiBtnsDisabled()` prevents concurrent API calls
+- Graceful try/catch around chart renders — CDN failure no longer halts app
+- Accessibility: `aria-label` on filter selects and star buttons; `for`/`id` label associations on form fields
+- Favicon 404 suppressed with inline data URI
 
 **v10**
 - New 8-signal set (replaced v9's 5 signals)
