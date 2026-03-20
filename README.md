@@ -62,7 +62,7 @@ Users configure eight signals that inject into each AI analysis. Signals are con
 
 ## Running locally
 
-1. Download `index.html` (rename from `wc2026_ticket_tracker_v17.html`)
+1. Download `index.html` (rename from `wc2026_ticket_tracker_v18.html`)
 2. Open in any modern browser
 3. Paste your Anthropic API key (`sk-ant-...`) into the key field at the top
 4. All features work — AI buttons call the Anthropic API directly from the browser
@@ -77,7 +77,7 @@ No build step, no dependencies, no server required for local use.
 
 ```
 your-project/
-  index.html          ← rename the v17 HTML file to this
+  index.html          ← rename the v18 HTML file to this
   api/
     analyze.js        ← Vercel serverless proxy (unchanged since v8)
   README.md
@@ -126,6 +126,15 @@ On Vercel, `callClaude()` auto-routes to `POST /api/analyze` instead of calling 
 ---
 
 ## Changelog
+
+**v18**
+- `askBestValue()` sort fixed — was calling removed `resalePrice()` wrapper, causing a `ReferenceError`; now uses `resalePriceFor(a,'Cat 3')` directly
+- Signal chips: all signals in a given analysis context are now highlighted — blue for active signals, green for Buyer Intent; removed the `val === 'High'` check that only highlighted high-priority signals
+- Tracker section order: Price Alerts → AI Purchase Analyst → Scenario Simulation (simulation moved below AI panel)
+- "Scenario risk ↗" renamed "Scenario resale risk ↗" — reflects that it uses the same resaleRisk signal context as the Resale risk button
+- `AI_BTN_LABELS` updated with `scenarioResaleRisk` entry for consistency
+- Cleanup: duplicate `sig-panel` HTML comment collapsed into one
+- Cleanup: portfolio AI panel HTML comment updated to reflect "Resale risk" label (was "Risk breakdown")
 
 **v17**
 - Portfolio "Risk breakdown" button renamed "Resale risk" — label matches the signal context it uses (identical to Tracker's Resale risk button)

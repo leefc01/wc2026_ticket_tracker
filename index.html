@@ -9,7 +9,7 @@
 
 <!--
 =============================================================================
-  FIFA WORLD CUP 2026 — TICKET INTELLIGENCE  v17
+  FIFA WORLD CUP 2026 — TICKET INTELLIGENCE  v18
   Built with Claude (Anthropic) · March 2026
 =============================================================================
 
@@ -41,10 +41,11 @@
     Signals Applied panel is permanent in both AI panels — always visible
     above buttons. setActiveBtn(type) and setPortActiveBtn(type) update the
     respective panel and button highlight (sticky, no mouseleave reset).
-    Default is analyze/bestValue on load and on view switch.
+    Default is analyze on load and on view switch.
     Portfolio has three buttons matching Tracker:
     Analyze portfolio (analyze signals), Best value (bestValue signals),
     Resale risk (resaleRisk signals). getPortfolioCtx() DRYs shared setup.
+    Tracker section order: Price Alerts → AI Panel → Scenario Simulation.
 
     formatText(t) formats all AI result text — paragraph breaks, line breaks,
     **bold** markdown — applied to every result rendering call.
@@ -270,7 +271,7 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
   <div class="header-row">
     <div>
       <div class="header-title">FIFA World Cup 2026 — Ticket Intelligence</div>
-      <div class="header-sub">TRACKER + SCENARIOS + PORTFOLIO + AI &nbsp;·&nbsp; v17 &nbsp;·&nbsp; 16 HOST CITIES &nbsp;·&nbsp; JUN 11 2026</div>
+      <div class="header-sub">TRACKER + SCENARIOS + PORTFOLIO + AI &nbsp;·&nbsp; v18 &nbsp;·&nbsp; 16 HOST CITIES &nbsp;·&nbsp; JUN 11 2026</div>
     </div>
     <button class="notif-btn" onclick="toggleTray()" id="notifBtn">
       Alerts<span class="notif-badge" id="notifBadge" style="display:none">0</span>
@@ -434,10 +435,43 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
       </div>
     </div>
 
+    <!-- AI PURCHASE ANALYST — Tracker
+         Analyze ↗              — all 8 signals, two-call RAG pipeline
+         Best value ↗           — bracket risk, travel, rivalry, budget, intent
+         Resale risk ↗          — bracket risk, travel, liquidity, price trend, intent
+         Analyze simulation ↗   — price trend, days, bracket risk, intent (in Simulation panel below)
+         Scenario resale risk ↗ — same as resale risk (in Simulation panel below)
+         mouseenter → setActiveBtn() updates Signals Applied + button highlight -->
+    <div class="ai-panel">
+      <div style="font-size:11px;color:var(--color-text-secondary);letter-spacing:.4px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">
+        <span><span class="ai-dot"></span>AI PURCHASE ANALYST</span>
+        <span style="font-size:11px;color:var(--color-text-tertiary)">RAG retrieval → context-aware signal-weighted analysis</span>
+      </div>
+      <div id="ai-output">
+        <span class="ai-placeholder">Select a match and click Analyze for a RAG-grounded, signal-weighted buy recommendation.</span>
+      </div>
+      <!-- Signals Applied — permanent, always visible. setActiveBtn() writes here.
+           Sticky: resets to Analyze on load and match select. -->
+      <div class="sig-ctx sig-applied" id="sig-panel"></div>
+      <div class="ai-actions">
+        <button class="ai-btn" id="analyze-btn"
+          onmouseenter="setActiveBtn('analyze')"
+          onclick="runAnalysis()">Analyze ↗</button>
+        <button class="ai-btn" id="best-value-btn"
+          onmouseenter="setActiveBtn('bestValue')"
+          onclick="askBestValue()">Best value ↗</button>
+        <button class="ai-btn" id="resale-risk-btn"
+          onmouseenter="setActiveBtn('resaleRisk')"
+          onclick="askResaleRisk()">Resale risk ↗</button>
+      </div>
+    </div>
+
+
     <!-- SCENARIO SIMULATION — always uses Cat 3 as the pricing baseline.
          Growth rates: base=40%, optimistic=10%, pessimistic=75% over full period.
          Team events and supply shocks apply multipliers.
-         findOptimalBuyDay() scans for the inflection point where 7-day growth exceeds 2.5%. -->
+         findOptimalBuyDay() scans for the inflection point where 7-day growth exceeds 2.5%.
+         Analyze simulation and Scenario resale risk buttons display results in the AI panel above. -->
     <div class="coll">
       <div class="coll-hdr" onclick="toggleColl('sim')">
         <span class="coll-lbl">SCENARIO SIMULATION — forward price projection to match day</span>
@@ -495,40 +529,8 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
         <div class="sim-metrics" id="simMetrics"></div>
         <div class="ai-actions" style="margin-top:2px">
           <button class="ai-btn" id="sim-analyze-btn" onclick="analyzeSimulation()">Analyze simulation ↗</button>
-          <button class="ai-btn" id="scenario-risk-btn" onclick="askScenarioRisk()">Scenario risk ↗</button>
+          <button class="ai-btn" id="scenario-risk-btn" onclick="askScenarioRisk()">Scenario resale risk ↗</button>
         </div>
-      </div>
-    </div>
-
-    <!-- AI PURCHASE ANALYST — Tracker
-         Analyze ↗        — all 8 signals, two-call RAG pipeline
-         Best value ↗     — bracket risk, travel, rivalry, budget, intent
-         Resale risk ↗    — bracket risk, travel, liquidity, price trend, intent
-         Simulation ↗     — price trend, days remaining, bracket risk, intent
-         Scenario risk ↗  — same as resale risk
-         mouseenter → setActiveBtn() updates Signals Applied + button highlight -->
-    <div class="ai-panel">
-      <div style="font-size:11px;color:var(--color-text-secondary);letter-spacing:.4px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">
-        <span><span class="ai-dot"></span>AI PURCHASE ANALYST</span>
-        <span style="font-size:11px;color:var(--color-text-tertiary)">RAG retrieval → context-aware signal-weighted analysis</span>
-      </div>
-      <div id="ai-output">
-        <span class="ai-placeholder">Select a match and click Analyze for a RAG-grounded, signal-weighted buy recommendation.</span>
-      </div>
-      <!-- Signals Applied — permanent panel, always visible. Updates on button
-           mouseenter (sticky). Resets to Analyze on load and match select. -->
-      <!-- Signals Applied — permanent, always visible. setActiveBtn() writes here. -->
-      <div class="sig-ctx sig-applied" id="sig-panel"></div>
-      <div class="ai-actions">
-        <button class="ai-btn" id="analyze-btn"
-          onmouseenter="setActiveBtn('analyze')"
-          onclick="runAnalysis()">Analyze ↗</button>
-        <button class="ai-btn" id="best-value-btn"
-          onmouseenter="setActiveBtn('bestValue')"
-          onclick="askBestValue()">Best value ↗</button>
-        <button class="ai-btn" id="resale-risk-btn"
-          onmouseenter="setActiveBtn('resaleRisk')"
-          onclick="askResaleRisk()">Resale risk ↗</button>
       </div>
     </div>
 
@@ -559,7 +561,7 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
       <!-- Portfolio AI panel — three buttons matching Tracker signal structure.
            Analyze portfolio: analyze signals (all 8)
            Best value: bestValue signals (5)
-           Risk breakdown: resaleRisk signals (5) -->
+           Resale risk: resaleRisk signals (5) -->
       <div class="panel">
         <div class="panel-label"><span><span class="ai-dot"></span>PORTFOLIO AI SUMMARY</span></div>
         <div id="port-ai-out">
@@ -773,12 +775,13 @@ function buildSignalContext(analysisType){
   return`User-configured signal priorities (${analysisType} analysis):\n${keys.map(k=>`- ${SIGNAL_LABELS[k]}: ${w[k]}`).join('\n')}`;
 }
 
-/* Build signal chips for the given analysis type */
+/* Build signal chips — all signals in context are highlighted.
+   Buyer intent gets green accent; all others get blue. Weight value shown in label. */
 function buildChips(analysisType){
   const w=getWeights(),keys=SIGNAL_CONTEXTS[analysisType]||[];
   return keys.map(k=>{
-    const val=w[k],cls=k==='buyerIntent'?'intent':val==='High'?'high':'';
-    return`<span class="sig-chip ${cls}">${SIGNAL_LABELS[k]}: ${val}</span>`;
+    const cls=k==='buyerIntent'?'intent':'high';
+    return`<span class="sig-chip ${cls}">${SIGNAL_LABELS[k]}: ${w[k]}</span>`;
   }).join('');
 }
 
@@ -786,7 +789,7 @@ function buildChips(analysisType){
 const AI_BTN_IDS={analyze:'analyze-btn',bestValue:'best-value-btn',resaleRisk:'resale-risk-btn'};
 const PORT_BTN_IDS={analyze:'port-analyze-btn',bestValue:'port-bestvalue-btn',resaleRisk:'port-risk-btn'};
 const AI_BTN_LABELS={analyze:'Analyze',bestValue:'Best value',resaleRisk:'Resale risk',
-  simulation:'Analyze simulation'};
+  simulation:'Analyze simulation',scenarioResaleRisk:'Scenario resale risk'};
 
 /* Shared inner renderer for a Signals Applied card */
 function sigCardHTML(analysisType){
@@ -1412,7 +1415,7 @@ function toggleRagCtx(el){const b=el.nextElementSibling;const open=b.style.displ
 /* Best Value — bestValue signal context, displays in AI panel */
 async function askBestValue(){
   const out=document.getElementById('ai-output');
-  const top5=[...ALL_MATCHES].sort((a,b)=>resalePrice(a)-resalePrice(b)).slice(0,5);
+  const top5=[...ALL_MATCHES].sort((a,b)=>resalePriceFor(a,'Cat 3')-resalePriceFor(b,'Cat 3')).slice(0,5);
   const signals=buildSignalContext('bestValue');
   out.innerHTML='<span style="color:var(--color-text-secondary);font-size:13px">Comparing best value matches...</span>';
   setAiBtnsDisabled(true);
