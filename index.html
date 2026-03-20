@@ -9,7 +9,7 @@
 
 <!--
 =============================================================================
-  FIFA WORLD CUP 2026 — TICKET INTELLIGENCE  v15
+  FIFA WORLD CUP 2026 — TICKET INTELLIGENCE  v16
   Built with Claude (Anthropic) · March 2026
 =============================================================================
 
@@ -35,13 +35,15 @@
     each analysis type receives. buildSignalContext() serializes the relevant
     subset into prompt text.
 
-    Signal Weights collapsible is global — rendered above the nav tabs so it
-    is accessible from both Tracker and Portfolio views.
+    Signal Weights collapsible is global — rendered at the bottom of the page
+    so it is accessible from both Tracker and Portfolio views.
 
     Signals Applied panel is permanent in both AI panels — always visible
     above buttons. setActiveBtn(type) and setPortActiveBtn(type) update the
     respective panel and button highlight (sticky, no mouseleave reset).
     Default is analyze/bestValue on load and on view switch.
+    Portfolio has three buttons: Analyze portfolio (analyze signals),
+    Best value (bestValue signals), Risk breakdown (resaleRisk signals).
 
     formatText(t) formats all AI result text — paragraph breaks, line breaks,
     **bold** markdown — applied to every result rendering call.
@@ -142,7 +144,7 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
 .meta{color:var(--color-text-secondary);margin-top:2px;}
 .price-tag{font-weight:500;font-size:12px;white-space:nowrap;color:#D85A30;}
 /* Star button — amber when starred, visible in light and dark mode */
-.star-btn{background:none;border:none;cursor:pointer;font-size:15px;padding:0 3px;color:var(--color-text-tertiary);line-height:1;flex-shrink:0;margin-top:1px;transition:color .15s;}
+.star-btn{background:none;border:none;cursor:pointer;font-size:18px;padding:0 3px;color:var(--color-text-secondary);line-height:1;flex-shrink:0;margin-top:1px;transition:color .15s;}
 .star-btn:hover{color:var(--color-text-secondary);}
 .star-btn.starred{color:#F5A623;}
 .no-matches{font-size:12px;color:var(--color-text-secondary);padding:12px;text-align:center;font-style:italic;}
@@ -171,7 +173,7 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
 .sig-ctx{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:8px 12px;margin-top:10px;border-left:2px solid #378ADD;}
 .sig-ctx-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
 .sig-ctx-lbl{font-size:10px;color:var(--color-text-secondary);letter-spacing:.4px;text-transform:uppercase;}
-/* "adjust weights ↑" link — opens Signal Weights collapsible */
+/* "adjust weights ↓" link — scrolls to Signal Weights at bottom */
 .sig-ctx-adj{font-size:10px;color:var(--color-text-tertiary);cursor:pointer;text-decoration:underline;white-space:nowrap;background:none;border:none;padding:0;font-family:var(--font-mono);}
 .sig-ctx-adj:hover{color:var(--color-text-secondary);}
 .sig-chips{display:flex;gap:5px;flex-wrap:wrap;}
@@ -267,52 +269,11 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
   <div class="header-row">
     <div>
       <div class="header-title">FIFA World Cup 2026 — Ticket Intelligence</div>
-      <div class="header-sub">TRACKER + SCENARIOS + PORTFOLIO + AI &nbsp;·&nbsp; v15 &nbsp;·&nbsp; 16 HOST CITIES &nbsp;·&nbsp; JUN 11 2026</div>
+      <div class="header-sub">TRACKER + SCENARIOS + PORTFOLIO + AI &nbsp;·&nbsp; v16 &nbsp;·&nbsp; 16 HOST CITIES &nbsp;·&nbsp; JUN 11 2026</div>
     </div>
     <button class="notif-btn" onclick="toggleTray()" id="notifBtn">
       Alerts<span class="notif-badge" id="notifBadge" style="display:none">0</span>
     </button>
-  </div>
-
-  <!-- SIGNAL WEIGHTS — global, visible from Tracker and Portfolio.
-       One set of form inputs; getWeights() reads them regardless of active view.
-       Buyer Intent is a binary toggle that reframes all four analysis types. -->
-  <div class="coll" id="rc-coll" style="margin-bottom:.75rem;">
-    <div class="coll-hdr" onclick="toggleColl('rc')">
-      <span class="coll-lbl">SIGNAL WEIGHTS — configure AI analysis priorities</span>
-      <div class="coll-right"><span class="coll-tog" id="rc-tog">▼ expand</span></div>
-    </div>
-    <div class="coll-body" id="rc-body" style="display:none">
-      <div class="intent-row">
-        <span class="intent-lbl">BUYER INTENT</span>
-        <div class="intent-toggle">
-          <button class="intent-btn active" id="intent-attend" onclick="setIntent('Attend')">Attend</button>
-          <button class="intent-btn speculative" id="intent-speculative" onclick="setIntent('Speculative')">Speculative</button>
-        </div>
-        <span class="intent-desc" id="intentDesc">Optimize for experience, certainty, and price lock-in</span>
-      </div>
-      <!-- Row 1: price-movement signals (Analyze + Simulation) -->
-      <div class="rc-grid">
-        <div class="rc-item"><label for="w-trend">PRICE TREND</label>
-          <select id="w-trend"><option>Low</option><option selected>Medium</option><option>High</option></select></div>
-        <div class="rc-item"><label for="w-days">DAYS REMAINING</label>
-          <select id="w-days"><option>Low</option><option>Medium</option><option selected>High</option></select></div>
-        <div class="rc-item"><label for="w-bracket">BRACKET POSITION RISK</label>
-          <select id="w-bracket"><option>Low</option><option selected>Medium</option><option>High</option></select></div>
-        <div class="rc-item"><label for="w-liquidity">RESALE LIQUIDITY</label>
-          <select id="w-liquidity"><option>Low</option><option selected>Medium</option><option>High</option></select></div>
-      </div>
-      <!-- Row 2: experience/value signals (Best Value + Resale Risk) -->
-      <div class="rc-grid-3">
-        <div class="rc-item"><label for="w-travel">FAN TRAVEL ACCESSIBILITY</label>
-          <select id="w-travel"><option>Low</option><option selected>Medium</option><option>High</option></select></div>
-        <div class="rc-item"><label for="w-rivalry">RIVALRY / ATMOSPHERE</label>
-          <select id="w-rivalry"><option>Low</option><option selected>Medium</option><option>High</option></select></div>
-        <div class="rc-item"><label for="w-budget">BUDGET FLEXIBILITY</label>
-          <select id="w-budget"><option>Low</option><option>Medium</option><option selected>High</option></select></div>
-      </div>
-      <div class="rc-hint">Each AI analysis receives only the signals relevant to its reasoning task. Buyer Intent applies to all analyses. Hover any AI button to see its signal set — or click "adjust weights ↑" to change priorities.</div>
-    </div>
   </div>
 
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap;gap:8px;">
@@ -404,17 +365,18 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
         </div>
       </div>
       <!-- Match list — star (★) is amber when active, visible in dark mode.
-           Price shown is Cat 3 regardless of selected category (sort anchor). -->
+           Price shown reflects selected category; Cat 3 when All is selected. -->
       <div class="panel">
         <div class="panel-label">
           <span>MATCHES <span id="match-count" style="color:var(--color-text-primary);font-weight:500"></span></span>
-          <span style="font-size:11px;color:var(--color-text-tertiary)">★ watchlist · Cat 3 price</span>
+          <span id="match-list-cat-label" style="font-size:11px;color:var(--color-text-tertiary)">★ watchlist · Cat 3 price</span>
         </div>
         <div class="match-list" id="matchList"></div>
       </div>
     </div>
 
-    <!-- PRICE ALERTS — evaluates against Cat 3 for consistent benchmarking. -->
+    <!-- PRICE ALERTS — evaluates against the selected category per alert.
+         Markup condition is category-invariant (ratio cancels). -->
     <div class="coll">
       <div class="coll-hdr" onclick="toggleColl('alerts')">
         <span class="coll-lbl">PRICE ALERTS</span>
@@ -438,16 +400,24 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
             <select class="alert-match-sel" id="alertMatchSel"></select>
           </div>
           <div class="alert-form-row">
+            <label for="alertCatSel">Category</label>
+            <select id="alertCatSel" aria-label="Alert seat category">
+              <option value="Cat 1">Cat 1</option>
+              <option value="Cat 2">Cat 2</option>
+              <option value="Cat 3" selected>Cat 3</option>
+              <option value="Cat 4">Cat 4</option>
+            </select>
+          </div>
+          <div class="alert-form-row">
             <label for="alertCondition">Condition</label>
             <select id="alertCondition" style="flex:1;min-width:180px">
-              <option value="below">Resale (Cat 3) drops below $</option>
-              <option value="above">Resale (Cat 3) rises above $</option>
-              <option value="fv_below">Face value (Cat 3) below $</option>
+              <option value="below">Resale drops below $</option>
+              <option value="above">Resale rises above $</option>
+              <option value="fv_below">Face value below $</option>
               <option value="pct_drop">7-day drop exceeds %</option>
               <option value="pct_rise">7-day rise exceeds %</option>
               <option value="markup_below">Markup drops below %</option>
             </select>
-            <label for="alertThreshold" class="sr-only">Threshold value</label>
             <input type="number" id="alertThreshold" value="300" min="0" step="10" style="width:80px" aria-label="Threshold value"/>
             <button class="alert-add-btn" onclick="addAlert()">+ Add</button>
           </div>
@@ -585,23 +555,69 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
           <tbody id="port-tbody"></tbody>
         </table>
       </div>
-      <!-- Portfolio AI panel — Signals Applied + hover highlight match tracker behavior.
-           setPortActiveBtn() updates #port-sig-applied and portfolio button highlights. -->
+      <!-- Portfolio AI panel — three buttons matching Tracker signal structure.
+           Analyze portfolio: analyze signals (all 8)
+           Best value: bestValue signals (5)
+           Risk breakdown: resaleRisk signals (5) -->
       <div class="panel">
         <div class="panel-label"><span><span class="ai-dot"></span>PORTFOLIO AI SUMMARY</span></div>
         <div id="port-ai-out">
-          <span class="ai-placeholder">Click "Analyze portfolio" for a cross-match buy-priority ranking and risk assessment.</span>
+          <span class="ai-placeholder">Select a button for AI analysis of your watchlisted matches.</span>
         </div>
         <div class="sig-ctx sig-applied" id="port-sig-panel"></div>
         <div class="ai-actions" style="margin-top:10px">
           <button class="ai-btn" id="port-analyze-btn"
-            onmouseenter="setPortActiveBtn('bestValue')"
+            onmouseenter="setPortActiveBtn('analyze')"
             onclick="analyzePortfolio()">Analyze portfolio ↗</button>
+          <button class="ai-btn" id="port-bestvalue-btn"
+            onmouseenter="setPortActiveBtn('bestValue')"
+            onclick="askPortfolioBestValue()">Best value ↗</button>
           <button class="ai-btn" id="port-risk-btn"
             onmouseenter="setPortActiveBtn('resaleRisk')"
             onclick="askPortfolioRisk()">Risk breakdown ↗</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- SIGNAL WEIGHTS — global, visible from Tracker and Portfolio.
+       Placed at bottom so "adjust weights ↓" link scrolls down to reach it.
+       One set of form inputs; getWeights() reads them regardless of active view. -->
+  <div class="coll" id="rc-coll" style="margin-top:.5rem;">
+    <div class="coll-hdr" onclick="toggleColl('rc')">
+      <span class="coll-lbl">SIGNAL WEIGHTS — configure AI analysis priorities</span>
+      <div class="coll-right"><span class="coll-tog" id="rc-tog">▼ expand</span></div>
+    </div>
+    <div class="coll-body" id="rc-body" style="display:none">
+      <div class="intent-row">
+        <span class="intent-lbl">BUYER INTENT</span>
+        <div class="intent-toggle">
+          <button class="intent-btn active" id="intent-attend" onclick="setIntent('Attend')">Attend</button>
+          <button class="intent-btn speculative" id="intent-speculative" onclick="setIntent('Speculative')">Speculative</button>
+        </div>
+        <span class="intent-desc" id="intentDesc">Optimize for experience, certainty, and price lock-in</span>
+      </div>
+      <!-- Row 1: price-movement signals (Analyze + Simulation) -->
+      <div class="rc-grid">
+        <div class="rc-item"><label for="w-trend">PRICE TREND</label>
+          <select id="w-trend"><option>Low</option><option selected>Medium</option><option>High</option></select></div>
+        <div class="rc-item"><label for="w-days">DAYS REMAINING</label>
+          <select id="w-days"><option>Low</option><option>Medium</option><option selected>High</option></select></div>
+        <div class="rc-item"><label for="w-bracket">BRACKET POSITION RISK</label>
+          <select id="w-bracket"><option>Low</option><option selected>Medium</option><option>High</option></select></div>
+        <div class="rc-item"><label for="w-liquidity">RESALE LIQUIDITY</label>
+          <select id="w-liquidity"><option>Low</option><option selected>Medium</option><option>High</option></select></div>
+      </div>
+      <!-- Row 2: experience/value signals (Best Value + Resale Risk) -->
+      <div class="rc-grid-3">
+        <div class="rc-item"><label for="w-travel">FAN TRAVEL ACCESSIBILITY</label>
+          <select id="w-travel"><option>Low</option><option selected>Medium</option><option>High</option></select></div>
+        <div class="rc-item"><label for="w-rivalry">RIVALRY / ATMOSPHERE</label>
+          <select id="w-rivalry"><option>Low</option><option selected>Medium</option><option>High</option></select></div>
+        <div class="rc-item"><label for="w-budget">BUDGET FLEXIBILITY</label>
+          <select id="w-budget"><option>Low</option><option>Medium</option><option selected>High</option></select></div>
+      </div>
+      <div class="rc-hint">Each AI analysis receives only the signals relevant to its reasoning task. Buyer Intent applies to all analyses. Hover any AI button to see its signal set — or click "adjust weights ↓" to change priorities.</div>
     </div>
   </div>
 
@@ -639,13 +655,14 @@ let selectedCat='All';
 
 function faceValFor(m,cat){return Math.round(m.base*CAT_MX[cat]);}
 function resalePriceFor(m,cat){return Math.round(m.current*m.resaleMx*CAT_MX[cat]);}
-function faceVal(m){return faceValFor(m,'Cat 3');}
 function resalePrice(m){return resalePriceFor(m,'Cat 3');}
 
 function setCat(cat){
   selectedCat=cat;
   Object.entries(CAT_BTN_IDS).forEach(([c,id])=>document.getElementById(id).classList.toggle('active',c===cat));
   document.getElementById('catDesc').textContent=CAT_DESC[cat];
+  const catLbl=cat==='All'?'Cat 3':cat;
+  document.getElementById('match-list-cat-label').textContent=`★ watchlist · ${catLbl} price`;
   renderMatchList();renderMetrics();renderChart();updateSim();
   if(document.getElementById('portfolio-content').style.display!=='none')renderPortfolio();
 }
@@ -680,10 +697,10 @@ function buildMatches(){
       const base=Math.round(STAGE_BASES[stage]*db);
       const rmx=STAGE_RESALE_MX[stage]*db*(0.85+Math.sin(id*3.7)*0.3);
       const pd=generatePrices(base,STAGE_VOL[stage],id*97+si*31);
-      m.push({id:id++,stage,teams:[t1,t2],stadium:stad,base,vol:STAGE_VOL[stage],
+      m.push({id:id++,stage,teams:[t1,t2],stadium:stad,base,
         demand:STAGE_DEMAND[stage],priceData:pd,
         current:pd.prices[pd.prices.length-1],
-        resaleMx:rmx,demandBoost:db,dayOffset:STAGE_DAY_OFFSET[stage]+si});
+        resaleMx:rmx,dayOffset:STAGE_DAY_OFFSET[stage]+si});
     });
   });
   return m;
@@ -696,8 +713,6 @@ const ALL_MATCHES=buildMatches();
 let filtered=[...ALL_MATCHES],selectedMatch=ALL_MATCHES[0],chart=null,simChart=null;
 let alerts=[],alertIdC=0,firedAlerts=[],watchlist=new Set();
 const collState={rc:false,alerts:false,sim:false};
-const IN_CLAUDE=typeof sendPrompt==='function'; // true when running inside claude.ai
-
 /* Markup % is category-invariant (catMx cancels in resale/face ratio).
    Per-category prices returned for All-mode range display and portfolio. */
 function getMetrics(m){
@@ -772,14 +787,14 @@ function buildChips(analysisType){
 
 /* Button ID → analysis type maps */
 const AI_BTN_IDS={analyze:'analyze-btn',bestValue:'best-value-btn',resaleRisk:'resale-risk-btn'};
-const PORT_BTN_IDS={bestValue:'port-analyze-btn',resaleRisk:'port-risk-btn'};
+const PORT_BTN_IDS={analyze:'port-analyze-btn',bestValue:'port-bestvalue-btn',resaleRisk:'port-risk-btn'};
 const AI_BTN_LABELS={analyze:'Analyze',bestValue:'Best value',resaleRisk:'Resale risk',
   simulation:'Analyze simulation',resaleRiskSim:'Scenario risk'};
 
 /* Shared inner renderer for a Signals Applied card */
 function sigCardHTML(analysisType){
   const label=AI_BTN_LABELS[analysisType]||analysisType;
-  return`<div class="sig-ctx-hdr"><span class="sig-ctx-lbl">SIGNALS APPLIED · ${label}</span><button class="sig-ctx-adj" onclick="openSignalWeights()">adjust weights ↑</button></div><div class="sig-chips">${buildChips(analysisType)}</div>`;
+  return`<div class="sig-ctx-hdr"><span class="sig-ctx-lbl">SIGNALS APPLIED · ${label}</span><button class="sig-ctx-adj" onclick="openSignalWeights()">adjust weights ↓</button></div><div class="sig-chips">${buildChips(analysisType)}</div>`;
 }
 
 /* Tracker: update Signals Applied panel + button highlight (sticky) */
@@ -927,15 +942,33 @@ async function analyzePortfolio(){
   const tRes=items.reduce((s,m)=>s+resalePriceFor(m,cat),0);
   const details=items.map(m=>{const met=getMetrics(m);const days=daysUntil(m.dayOffset);
     return`${m.teams[0]} vs ${m.teams[1]} (${m.stage}, ${m.stadium.city.split(',')[0]}, ${cat} face $${faceValFor(m,cat)}, resale $${resalePriceFor(m,cat)}, +${met.markup}% markup, ${days} days, ${m.demand} demand)`;}).join('; ');
-  const signals=buildSignalContext('bestValue');
+  const signals=buildSignalContext('analyze');
   out.innerHTML='<span style="color:var(--color-text-secondary);font-size:13px">Analyzing portfolio...</span>';
   setAiBtnsDisabled(true);
   try{
-    const text=await callClaude(`You are a sports ticket market analyst reviewing a WC2026 watchlist.\n\nPortfolio: ${items.length} matches | Total ${cat} face: $${tFv.toLocaleString()} | Total resale: $${tRes.toLocaleString()}\nMatches: ${details}\n\n${signals}\n\nAnalyze this portfolio: which to buy first, which can wait, biggest price risk, is total spend reasonable? Frame advice for the buyer's intent. Under 200 words.`);
+    const text=await callClaude(`You are a sports ticket market analyst reviewing a WC2026 watchlist.\n\nPortfolio: ${items.length} matches | Total ${cat} face: $${tFv.toLocaleString()} | Total resale: $${tRes.toLocaleString()}\nMatches: ${details}\n\n${signals}\n\nAnalyze this portfolio: buy/wait timing for each match, biggest price risks, total spend assessment. Frame for buyer's intent. Under 250 words.`);
     out.innerHTML=`<div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${formatText(text)}</div>`;
   } catch(e){
     out.innerHTML=`<span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;
   }
+  setAiBtnsDisabled(false);
+}
+
+
+/* Portfolio Best Value — bestValue signals, compares watchlisted matches */
+async function askPortfolioBestValue(){
+  const items=[...watchlist].map(id=>ALL_MATCHES.find(m=>m.id===id));
+  if(!items.length)return;
+  const out=document.getElementById('port-ai-out');
+  const cat=selectedCat==='All'?'Cat 3':selectedCat;
+  const details=items.map(m=>{const met=getMetrics(m);return`${m.teams[0]} vs ${m.teams[1]} (${m.stage}, ${m.stadium.city.split(',')[0]}, ${cat} face $${faceValFor(m,cat)}, resale $${resalePriceFor(m,cat)}, +${met.markup}% markup, ${daysUntil(m.dayOffset)} days)`;}).join('; ');
+  const signals=buildSignalContext('bestValue');
+  out.innerHTML='<span style="color:var(--color-text-secondary);font-size:13px">Comparing watchlist value...</span>';
+  setAiBtnsDisabled(true);
+  try{
+    const text=await callClaude(`You are a sports ticket market analyst comparing value across a WC2026 watchlist.\n\nWatchlisted matches (${cat}): ${details}\n\n${signals}\n\nRank these matches by value and identify the best buy. Frame for buyer's intent. Under 200 words.`);
+    out.innerHTML=`<div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${formatText(text)}</div>`;
+  } catch(e){out.innerHTML=`<span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;}
   setAiBtnsDisabled(false);
 }
 
@@ -952,7 +985,7 @@ async function askPortfolioRisk(){
   setAiBtnsDisabled(true);
   try{
     const text=await callClaude(prompt);
-    out.innerHTML=`<div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${text}</div>`;
+    out.innerHTML=`<div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${formatText(text)}</div>`;
   } catch(e){
     out.innerHTML=`<span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;
   }
@@ -960,29 +993,35 @@ async function askPortfolioRisk(){
 }
 
 /* =============================================================================
-   ALERT ENGINE — always evaluates against Cat 3 for consistent benchmarking
+   ALERT ENGINE — per-alert category; markup condition is category-invariant
    ============================================================================= */
-function condLabel(t,v){return{below:`Resale < $${v}`,above:`Resale > $${v}`,fv_below:`Face < $${v}`,pct_drop:`7d drop > ${v}%`,pct_rise:`7d rise > ${v}%`,markup_below:`Markup < ${v}%`}[t]||t;}
+function condLabel(t,v,cat){
+  const c=cat||'Cat 3';
+  return{below:`Resale (${c}) < $${v}`,above:`Resale (${c}) > $${v}`,fv_below:`Face (${c}) < $${v}`,
+    pct_drop:`7d drop > ${v}%`,pct_rise:`7d rise > ${v}%`,markup_below:`Markup < ${v}%`}[t]||t;
+}
 function evalAlert(a){
   const m=ALL_MATCHES.find(x=>x.id===a.matchId);if(!m)return false;
-  const met=getMetrics(m),pct=parseFloat(met.pct7);
+  const cat=a.cat||'Cat 3',pct=parseFloat(getMetrics(m).pct7);
+  const resale=resalePriceFor(m,cat),face=faceValFor(m,cat),markup=getMetrics(m).markup;
   switch(a.type){
-    case'below':return met.resCat3<a.threshold;
-    case'above':return met.resCat3>a.threshold;
-    case'fv_below':return met.fvCat3<a.threshold;
+    case'below':return resale<a.threshold;
+    case'above':return resale>a.threshold;
+    case'fv_below':return face<a.threshold;
     case'pct_drop':return pct<-Math.abs(a.threshold);
     case'pct_rise':return pct>Math.abs(a.threshold);
-    case'markup_below':return met.markup<a.threshold;
+    case'markup_below':return markup<a.threshold;
     default:return false;
   }
 }
 function addAlert(){
   const mid=parseInt(document.getElementById('alertMatchSel').value);
+  const cat=document.getElementById('alertCatSel').value;
   const type=document.getElementById('alertCondition').value;
   const thr=parseFloat(document.getElementById('alertThreshold').value);
   if(isNaN(thr))return;
   const m=ALL_MATCHES.find(x=>x.id===mid);
-  alerts.push({id:alertIdC++,matchId:mid,matchName:`${m.teams[0]} vs ${m.teams[1]}`,stage:m.stage,type,threshold:thr,fired:false,firedAt:null});
+  alerts.push({id:alertIdC++,matchId:mid,matchName:`${m.teams[0]} vs ${m.teams[1]}`,stage:m.stage,cat,type,threshold:thr,fired:false,firedAt:null});
   renderAlertList();updateAlertBadge();updateAlertsSummary();switchAlertTab('manage');
 }
 function deleteAlert(id){alerts=alerts.filter(a=>a.id!==id);firedAlerts=firedAlerts.filter(a=>a.id!==id);renderAlertList();renderNotifTray();updateAlertBadge();updateAlertsSummary();}
@@ -993,7 +1032,8 @@ function checkAlerts(){
       a.fired=true;a.firedAt=new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
       firedAlerts.push({...a});fired++;
       const m=ALL_MATCHES.find(x=>x.id===a.matchId),met=getMetrics(m);
-      sendNotif(`WC2026 Alert: ${a.matchName}`,`${condLabel(a.type,a.threshold)} — Cat 3 resale $${met.resCat3.toLocaleString()}`,a.matchId);
+      const ac=a.cat||'Cat 3';
+      sendNotif(`WC2026 Alert: ${a.matchName}`,`${condLabel(a.type,a.threshold,ac)} — ${ac} resale $${resalePriceFor(m,ac).toLocaleString()}`,a.matchId);
     }
   });
   renderAlertList();renderNotifTray();updateAlertBadge();updateAlertsSummary();
@@ -1013,7 +1053,8 @@ function renderNotifTray(){
   if(!firedAlerts.length){el.innerHTML='<div class="empty-note">No alerts fired yet.</div>';return;}
   el.innerHTML=firedAlerts.map(a=>{
     const m=ALL_MATCHES.find(x=>x.id===a.matchId),met=m?getMetrics(m):null;
-    return`<div class="notif-item"><div class="notif-text"><strong>${a.matchName}</strong> — ${condLabel(a.type,a.threshold)}<br><span style="font-size:11px;color:var(--color-text-secondary)">${met?`Cat 3 resale $${met.resCat3.toLocaleString()} · face $${met.fvCat3.toLocaleString()}`:''}</span><div class="notif-time">Fired at ${a.firedAt||'—'}</div></div><button class="notif-act" onclick="analyzeFromAlert(${a.matchId})">Analyze ↗</button></div>`;
+    const ac=a.cat||'Cat 3';
+    return`<div class="notif-item"><div class="notif-text"><strong>${a.matchName}</strong> — ${condLabel(a.type,a.threshold,ac)}<br><span style="font-size:11px;color:var(--color-text-secondary)">${m?`${ac} resale $${resalePriceFor(m,ac).toLocaleString()} · face $${faceValFor(m,ac).toLocaleString()}`:''}</span><div class="notif-time">Fired at ${a.firedAt||'—'}</div></div><button class="notif-act" onclick="analyzeFromAlert(${a.matchId})">Analyze ↗</button></div>`;
   }).join('');
 }
 /* Clicking Analyze in the fired alert tray immediately runs full RAG analysis */
@@ -1068,7 +1109,7 @@ function renderMatchList(){
     return`<div class="match-item ${m.id===selectedMatch.id?'selected':''}" onclick="selectMatch(${m.id})">
       <button class="star-btn ${starred?'starred':''}" onclick="toggleWatchlist(${m.id},event)" aria-label="${starred?'Remove from':'Add to'} watchlist">${starred?'★':'☆'}</button>
       <div class="match-item-content"><div class="teams">${m.teams[0]} vs ${m.teams[1]}${ha?' 🔔':''}</div><div class="meta">${m.stage} · ${m.stadium.city.split(',')[0]}</div></div>
-      <span class="price-tag">$${resalePrice(m).toLocaleString()}</span>
+      <span class="price-tag">$${resalePriceFor(m,selectedCat==='All'?'Cat 3':selectedCat).toLocaleString()}</span>
     </div>`;
   }).join('');
 }
@@ -1419,7 +1460,7 @@ populateAlertMatchSel();
 applyFilters();
 selectMatch(ALL_MATCHES[0].id);
 setActiveBtn('analyze');    // initialize Signals Applied panel
-setPortActiveBtn('bestValue'); // initialize portfolio Signals Applied panel
+setPortActiveBtn('analyze');   // initialize portfolio Signals Applied panel
 renderAlertList();
 renderNotifTray();
 updatePermUI();

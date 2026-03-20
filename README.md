@@ -45,7 +45,7 @@ Layer 4 — Simulation
 
 ## Signal weights
 
-Users configure eight signals that inject into each AI analysis. Signals are context-aware — each analysis type only receives the subset relevant to its reasoning task. The Signals Applied card above the action buttons always shows which signals are active for the currently selected analysis.
+Users configure eight signals that inject into each AI analysis. Signals are context-aware — each analysis type only receives the subset relevant to its reasoning task. The Signals Applied card above the action buttons always shows which signals are active. Hovering any button updates the card. Signal Weights configuration is at the bottom of the page — accessible from both Tracker and Portfolio via the "adjust weights ↓" link.
 
 | Signal | Analyze | Simulation | Best Value | Resale Risk |
 |---|---|---|---|---|
@@ -62,7 +62,7 @@ Users configure eight signals that inject into each AI analysis. Signals are con
 
 ## Running locally
 
-1. Download `index.html` (rename from `wc2026_ticket_tracker_v15.html`)
+1. Download `index.html` (rename from `wc2026_ticket_tracker_v16.html`)
 2. Open in any modern browser
 3. Paste your Anthropic API key (`sk-ant-...`) into the key field at the top
 4. All features work — AI buttons call the Anthropic API directly from the browser
@@ -77,7 +77,7 @@ No build step, no dependencies, no server required for local use.
 
 ```
 your-project/
-  index.html          ← rename the v15 HTML file to this
+  index.html          ← rename the v16 HTML file to this
   api/
     analyze.js        ← Vercel serverless proxy (unchanged since v8)
   README.md
@@ -126,6 +126,18 @@ On Vercel, `callClaude()` auto-routes to `POST /api/analyze` instead of calling 
 ---
 
 ## Changelog
+
+**v16**
+- Star button increased to `font-size:18px`, resting color raised to `var(--color-text-secondary)` — clearly visible in dark and light mode before interaction
+- Match list price now reflects selected seat category — Cat 3 when All is selected (consistent with sort/filter anchor); panel label updates dynamically
+- Price Alerts: added Category selector per alert — each alert evaluates against its own Cat 1–4; `condLabel()` and `evalAlert()` updated to use `a.cat`; alert list and notification tray show the category
+- Portfolio AI panel now has three buttons matching Tracker: Analyze portfolio (all 8 signals), Best value (bestValue signals), Risk breakdown (resaleRisk signals)
+- `analyzePortfolio()` switched to `analyze` signal context (all 8); updated prompt for buy/wait timing and spend assessment
+- `askPortfolioBestValue()` added — ranks watchlisted matches by value using bestValue signals
+- `PORT_BTN_IDS` updated to include all three portfolio buttons
+- Signal Weights collapsible moved to bottom of page — "adjust weights ↓" link scrolls down to reach it from both Tracker and Portfolio views
+- `formatText()` applied to `askResaleRisk()` and `askPortfolioRisk()` — both now render with paragraph breaks and bold markdown
+- Code cleanup: CSS comment for `.sig-ctx-adj` updated to reflect ↓ direction; `adjust weights ↑` → `adjust weights ↓` throughout
 
 **v15**
 - Signal Weights collapsible moved above the nav tabs — now globally accessible from both Tracker and Portfolio views; single set of form inputs, no duplicate IDs
