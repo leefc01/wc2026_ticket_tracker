@@ -12,9 +12,12 @@
 
   REQUEST:  POST /api/analyze  { prompt: string }
   RESPONSE: { text: string } or { error: string }
+
+  CommonJS module.exports used (not ESM export default) to match Vercel's
+  default Node.js runtime and avoid compilation warnings.
 */
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   /* Only accept POST */
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
