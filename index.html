@@ -9,7 +9,7 @@
 
 <!--
 =============================================================================
-  FIFA WORLD CUP 2026 — TICKET INTELLIGENCE  v16
+  FIFA WORLD CUP 2026 — TICKET INTELLIGENCE  v17
   Built with Claude (Anthropic) · March 2026
 =============================================================================
 
@@ -42,8 +42,9 @@
     above buttons. setActiveBtn(type) and setPortActiveBtn(type) update the
     respective panel and button highlight (sticky, no mouseleave reset).
     Default is analyze/bestValue on load and on view switch.
-    Portfolio has three buttons: Analyze portfolio (analyze signals),
-    Best value (bestValue signals), Risk breakdown (resaleRisk signals).
+    Portfolio has three buttons matching Tracker:
+    Analyze portfolio (analyze signals), Best value (bestValue signals),
+    Resale risk (resaleRisk signals). getPortfolioCtx() DRYs shared setup.
 
     formatText(t) formats all AI result text — paragraph breaks, line breaks,
     **bold** markdown — applied to every result rendering call.
@@ -269,7 +270,7 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
   <div class="header-row">
     <div>
       <div class="header-title">FIFA World Cup 2026 — Ticket Intelligence</div>
-      <div class="header-sub">TRACKER + SCENARIOS + PORTFOLIO + AI &nbsp;·&nbsp; v16 &nbsp;·&nbsp; 16 HOST CITIES &nbsp;·&nbsp; JUN 11 2026</div>
+      <div class="header-sub">TRACKER + SCENARIOS + PORTFOLIO + AI &nbsp;·&nbsp; v17 &nbsp;·&nbsp; 16 HOST CITIES &nbsp;·&nbsp; JUN 11 2026</div>
     </div>
     <button class="notif-btn" onclick="toggleTray()" id="notifBtn">
       Alerts<span class="notif-badge" id="notifBadge" style="display:none">0</span>
@@ -574,7 +575,7 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
             onclick="askPortfolioBestValue()">Best value ↗</button>
           <button class="ai-btn" id="port-risk-btn"
             onmouseenter="setPortActiveBtn('resaleRisk')"
-            onclick="askPortfolioRisk()">Risk breakdown ↗</button>
+            onclick="askPortfolioRisk()">Resale risk ↗</button>
         </div>
       </div>
     </div>
@@ -655,8 +656,6 @@ let selectedCat='All';
 
 function faceValFor(m,cat){return Math.round(m.base*CAT_MX[cat]);}
 function resalePriceFor(m,cat){return Math.round(m.current*m.resaleMx*CAT_MX[cat]);}
-function resalePrice(m){return resalePriceFor(m,'Cat 3');}
-
 function setCat(cat){
   selectedCat=cat;
   Object.entries(CAT_BTN_IDS).forEach(([c,id])=>document.getElementById(id).classList.toggle('active',c===cat));
@@ -721,10 +720,8 @@ function getMetrics(m){
   const min30=Math.min(...p.slice(-30));
   const markup=Math.round((m.current*m.resaleMx/m.base-1)*100);
   return{base:cur,delta7,pct7,min30,markup,
-    fvCat1:faceValFor(m,'Cat 1'),fvCat2:faceValFor(m,'Cat 2'),
-    fvCat3:faceValFor(m,'Cat 3'),fvCat4:faceValFor(m,'Cat 4'),
-    resCat1:resalePriceFor(m,'Cat 1'),resCat2:resalePriceFor(m,'Cat 2'),
-    resCat3:resalePriceFor(m,'Cat 3'),resCat4:resalePriceFor(m,'Cat 4')};
+    fvCat1:faceValFor(m,'Cat 1'),fvCat3:faceValFor(m,'Cat 3'),fvCat4:faceValFor(m,'Cat 4'),
+    resCat1:resalePriceFor(m,'Cat 1'),resCat3:resalePriceFor(m,'Cat 3'),resCat4:resalePriceFor(m,'Cat 4')};
 }
 
 /* =============================================================================
@@ -789,7 +786,7 @@ function buildChips(analysisType){
 const AI_BTN_IDS={analyze:'analyze-btn',bestValue:'best-value-btn',resaleRisk:'resale-risk-btn'};
 const PORT_BTN_IDS={analyze:'port-analyze-btn',bestValue:'port-bestvalue-btn',resaleRisk:'port-risk-btn'};
 const AI_BTN_LABELS={analyze:'Analyze',bestValue:'Best value',resaleRisk:'Resale risk',
-  simulation:'Analyze simulation',resaleRiskSim:'Scenario risk'};
+  simulation:'Analyze simulation'};
 
 /* Shared inner renderer for a Signals Applied card */
 function sigCardHTML(analysisType){
@@ -847,7 +844,7 @@ function setIntent(intent){
 /* Helper to disable/enable all AI buttons during a call */
 function setAiBtnsDisabled(disabled){
   ['analyze-btn','best-value-btn','resale-risk-btn','sim-analyze-btn',
-   'scenario-risk-btn','port-analyze-btn','port-risk-btn'].forEach(id=>{
+   'scenario-risk-btn','port-analyze-btn','port-bestvalue-btn','port-risk-btn'].forEach(id=>{
     const el=document.getElementById(id);
     if(el)el.disabled=disabled;
   });
@@ -895,7 +892,7 @@ function switchView(v){
   document.getElementById('nav-portfolio').classList.toggle('active',v==='portfolio');
   document.getElementById('tracker-view').style.display=v==='tracker'?'block':'none';
   document.getElementById('portfolio-view').style.display=v==='portfolio'?'block':'none';
-  if(v==='portfolio'){renderPortfolio();setPortActiveBtn('bestValue');}
+  if(v==='portfolio'){renderPortfolio();setPortActiveBtn('analyze');}
 }
 function toggleWatchlist(id,e){
   e.stopPropagation();
@@ -932,12 +929,18 @@ function renderPortfolio(){
 }
 function removeWL(id){watchlist.delete(id);renderMatchList();updatePortCount();renderPortfolio();}
 
-/* Portfolio AI buttons — results display in port-ai-out with signal context card */
-async function analyzePortfolio(){
+/* Shared portfolio context builder — avoids repeating items/cat/out setup */
+function getPortfolioCtx(){
   const items=[...watchlist].map(id=>ALL_MATCHES.find(m=>m.id===id));
-  if(!items.length)return;
-  const out=document.getElementById('port-ai-out');
   const cat=selectedCat==='All'?'Cat 3':selectedCat;
+  const out=document.getElementById('port-ai-out');
+  return{items,cat,out};
+}
+
+/* Portfolio AI buttons — all display results in port-ai-out */
+async function analyzePortfolio(){
+  const {items,cat,out}=getPortfolioCtx();
+  if(!items.length)return;
   const tFv=items.reduce((s,m)=>s+faceValFor(m,cat),0);
   const tRes=items.reduce((s,m)=>s+resalePriceFor(m,cat),0);
   const details=items.map(m=>{const met=getMetrics(m);const days=daysUntil(m.dayOffset);
@@ -954,13 +957,10 @@ async function analyzePortfolio(){
   setAiBtnsDisabled(false);
 }
 
-
 /* Portfolio Best Value — bestValue signals, compares watchlisted matches */
 async function askPortfolioBestValue(){
-  const items=[...watchlist].map(id=>ALL_MATCHES.find(m=>m.id===id));
+  const {items,cat,out}=getPortfolioCtx();
   if(!items.length)return;
-  const out=document.getElementById('port-ai-out');
-  const cat=selectedCat==='All'?'Cat 3':selectedCat;
   const details=items.map(m=>{const met=getMetrics(m);return`${m.teams[0]} vs ${m.teams[1]} (${m.stage}, ${m.stadium.city.split(',')[0]}, ${cat} face $${faceValFor(m,cat)}, resale $${resalePriceFor(m,cat)}, +${met.markup}% markup, ${daysUntil(m.dayOffset)} days)`;}).join('; ');
   const signals=buildSignalContext('bestValue');
   out.innerHTML='<span style="color:var(--color-text-secondary);font-size:13px">Comparing watchlist value...</span>';
@@ -973,9 +973,8 @@ async function askPortfolioBestValue(){
 }
 
 async function askPortfolioRisk(){
-  const items=[...watchlist].map(id=>ALL_MATCHES.find(m=>m.id===id));
+  const {items,out}=getPortfolioCtx();
   if(!items.length)return;
-  const out=document.getElementById('port-ai-out');
   const extreme=items.filter(m=>m.demand==='extreme'||m.stage==='Final'||m.stage==='Semifinal');
   const signals=buildSignalContext('resaleRisk');
   const prompt=extreme.length
@@ -1002,8 +1001,8 @@ function condLabel(t,v,cat){
 }
 function evalAlert(a){
   const m=ALL_MATCHES.find(x=>x.id===a.matchId);if(!m)return false;
-  const cat=a.cat||'Cat 3',pct=parseFloat(getMetrics(m).pct7);
-  const resale=resalePriceFor(m,cat),face=faceValFor(m,cat),markup=getMetrics(m).markup;
+  const met=getMetrics(m),cat=a.cat||'Cat 3',pct=parseFloat(met.pct7);
+  const resale=resalePriceFor(m,cat),face=faceValFor(m,cat),markup=met.markup;
   switch(a.type){
     case'below':return resale<a.threshold;
     case'above':return resale>a.threshold;
@@ -1031,7 +1030,7 @@ function checkAlerts(){
     if(evalAlert(a)&&!a.fired){
       a.fired=true;a.firedAt=new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
       firedAlerts.push({...a});fired++;
-      const m=ALL_MATCHES.find(x=>x.id===a.matchId),met=getMetrics(m);
+      const m=ALL_MATCHES.find(x=>x.id===a.matchId);
       const ac=a.cat||'Cat 3';
       sendNotif(`WC2026 Alert: ${a.matchName}`,`${condLabel(a.type,a.threshold,ac)} — ${ac} resale $${resalePriceFor(m,ac).toLocaleString()}`,a.matchId);
     }
@@ -1062,7 +1061,7 @@ function analyzeFromAlert(matchId){selectMatch(matchId);runAnalysis();}
 function renderAlertList(){
   const el=document.getElementById('alertList');
   if(!alerts.length){el.innerHTML='<div class="empty-note">No alerts set.</div>';return;}
-  el.innerHTML=alerts.map(a=>`<div class="alert-item ${a.fired?'fired':''}"><div style="flex:1"><div class="alert-desc">${condLabel(a.type,a.threshold)}</div><div class="alert-sub">${a.matchName} · ${a.stage}</div></div><span class="alert-status ${a.fired?'status-fired':'status-watching'}">${a.fired?'FIRED':'watching'}</span><span class="alert-del" onclick="deleteAlert(${a.id})">×</span></div>`).join('');
+  el.innerHTML=alerts.map(a=>`<div class="alert-item ${a.fired?'fired':''}"><div style="flex:1"><div class="alert-desc">${condLabel(a.type,a.threshold,a.cat)}</div><div class="alert-sub">${a.matchName} · ${a.stage} · ${a.cat||'Cat 3'}</div></div><span class="alert-status ${a.fired?'status-fired':'status-watching'}">${a.fired?'FIRED':'watching'}</span><span class="alert-del" onclick="deleteAlert(${a.id})">×</span></div>`).join('');
 }
 function switchAlertTab(tab){
   document.getElementById('tab-add').classList.toggle('active',tab==='add');
@@ -1087,7 +1086,7 @@ function applyFilters(){
   const stage=document.getElementById('stageFilter').value,stad=document.getElementById('stadiumFilter').value,
         team=document.getElementById('teamFilter').value,price=document.getElementById('priceFilter').value;
   filtered=ALL_MATCHES.filter(m=>{
-    const dp=resalePrice(m); // Cat 3 anchor
+    const dp=resalePriceFor(m,'Cat 3'); // Cat 3 sort/filter anchor
     if(stage&&m.stage!==stage)return false;
     if(stad&&m.stadium.id!==stad)return false;
     if(team&&!m.teams.includes(team))return false;
@@ -1331,7 +1330,7 @@ ${signals}
     let bc='badge-wait',bt='WAIT';
     if(text.toLowerCase().includes('buy now')||text.toLowerCase().includes('buy within')){bc='badge-buy';bt='BUY NOW';}
     if(text.toLowerCase().includes('urgent')){bc='badge-urgent';bt='URGENT';}
-    out.innerHTML=`<div class="rec-badge ${bc}">${bt}</div><div class="signal-row"><span class="signal">simulation</span><span class="signal">Cat 3</span><span class="signal">base→$${baseP[days-1].toLocaleString()}</span><span class="signal">worst→$${pesP[days-1].toLocaleString()}</span><span class="signal">spread $${(pesP[days-1]-optP[days-1]).toLocaleString()}</span></div><div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${text}</div>`;
+    out.innerHTML=`<div class="rec-badge ${bc}">${bt}</div><div class="signal-row"><span class="signal">simulation</span><span class="signal">Cat 3</span><span class="signal">base→$${baseP[days-1].toLocaleString()}</span><span class="signal">worst→$${pesP[days-1].toLocaleString()}</span><span class="signal">spread $${(pesP[days-1]-optP[days-1]).toLocaleString()}</span></div><div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${formatText(text)}</div>`;
   } catch(e){out.innerHTML=`<div class="rec-badge badge-wait">—</div><span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;}
   setAiBtnsDisabled(false);
 }
@@ -1445,7 +1444,7 @@ Late-stage matches (Cat 3): ${late.map(m=>{const met=getMetrics(m);return`${m.te
 ${signals}
 
 Explain the resale risk and optimal buy timing for each. Frame for buyer's intent. Under 250 words.`);
-    out.innerHTML=`<div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${text}</div>`;
+    out.innerHTML=`<div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${formatText(text)}</div>`;
   } catch(e){out.innerHTML=`<span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;}
   setAiBtnsDisabled(false);
 }

@@ -62,7 +62,7 @@ Users configure eight signals that inject into each AI analysis. Signals are con
 
 ## Running locally
 
-1. Download `index.html` (rename from `wc2026_ticket_tracker_v16.html`)
+1. Download `index.html` (rename from `wc2026_ticket_tracker_v17.html`)
 2. Open in any modern browser
 3. Paste your Anthropic API key (`sk-ant-...`) into the key field at the top
 4. All features work — AI buttons call the Anthropic API directly from the browser
@@ -77,7 +77,7 @@ No build step, no dependencies, no server required for local use.
 
 ```
 your-project/
-  index.html          ← rename the v16 HTML file to this
+  index.html          ← rename the v17 HTML file to this
   api/
     analyze.js        ← Vercel serverless proxy (unchanged since v8)
   README.md
@@ -126,6 +126,20 @@ On Vercel, `callClaude()` auto-routes to `POST /api/analyze` instead of calling 
 ---
 
 ## Changelog
+
+**v17**
+- Portfolio "Risk breakdown" button renamed "Resale risk" — label matches the signal context it uses (identical to Tracker's Resale risk button)
+- Portfolio defaults to Analyze portfolio button highlighted on load and on every view switch
+- `getPortfolioCtx()` helper added — DRYs the repeated `items / cat / out` setup shared across all three portfolio AI handlers
+- Bug fix: `renderAlertList()` now passes `a.cat` to `condLabel()` — alert list now shows category-specific condition labels
+- Bug fix: `port-bestvalue-btn` added to `setAiBtnsDisabled()` — portfolio Best Value button now correctly disables during active calls
+- Bug fix: `analyzeSimulation()` result now uses `formatText()` — simulation analysis text renders with paragraph breaks and bold
+- Cleanup: `getMetrics()` cached once in `evalAlert()` — was being called twice (once for `pct7`, once for `markup`)
+- Cleanup: `fvCat2` and `resCat2` removed from `getMetrics()` return — computed but never read anywhere
+- Cleanup: `resaleRiskSim` removed from `AI_BTN_LABELS` — dead key, nothing looked it up
+- Cleanup: unused `met` variable removed from `checkAlerts()` — notification now calls `resalePriceFor()` directly
+- Cleanup: `resalePrice()` wrapper removed — inlined as `resalePriceFor(m,'Cat 3')` in `applyFilters()`
+- Cleanup: double blank line after `analyzePortfolio()` removed
 
 **v16**
 - Star button increased to `font-size:18px`, resting color raised to `var(--color-text-secondary)` — clearly visible in dark and light mode before interaction
