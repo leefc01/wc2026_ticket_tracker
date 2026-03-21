@@ -4,6 +4,14 @@ AI-powered price tracker and purchase advisor for World Cup 2026 tickets. Built 
 
 ---
 
+## Why I created this
+
+Like many good things, the idea started with a discussion over dinner: How could I keep track of World Cup ticket prices to find the best value? It was also the perfect excuse to teach my son Python.
+
+What began as a straightforward 'retrieve and alert' script evolved into a robust RAG (Retrieval-Augmented Generation) architecture for contextual analysis. This project serves as a hands-on sandbox for experimenting with AI patterns while solving a real-world data challenge.
+
+---
+
 ## What it does
 
 - Tracks simulated resale price history across 18 matches (Group Stage through Final) at all 16 host stadiums
