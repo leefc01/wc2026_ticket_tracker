@@ -9,52 +9,53 @@
 
 <!--
 =============================================================================
-  FIFA WORLD CUP 2026 — TICKET INTELLIGENCE  v18
+  FIFA WORLD CUP 2026 — TICKET INTELLIGENCE  v19
   Built with Claude (Anthropic) · March 2026
 =============================================================================
 
-  THREE-LAYER ARCHITECTURE:
+  FOUR-LAYER ARCHITECTURE:
 
   Layer 1 — Data (seeded → production: Playwright scraper)
     Swap generatePrices() + buildMatches() with fetch('/api/matches')
     to connect a backend scraping StubHub, SeatGeek, FIFA resale APIs.
 
   Layer 2 — Application (browser, stateful JS)
-    Filters, category selector, chart, alert engine,
-    watchlist, portfolio, scenario simulation, browser notifications.
-
-  Layer 3 — AI (embedded inference)
-    callClaude() routes to:
-      · Vercel: POST /api/analyze (key stays server-side)
-      · Local:  direct Anthropic API call (key from input field)
-    Analyze: two sequential calls — RAG retrieval → grounded analysis
-    All other AI buttons: single call, results displayed in AI panel
-
-  SIGNAL WEIGHTS — context-aware injection:
-    Eight user-configurable signals. SIGNAL_CONTEXTS defines which signals
-    each analysis type receives. buildSignalContext() serializes the relevant
-    subset into prompt text.
-
-    Signal Weights collapsible is global — rendered at the bottom of the page
-    so it is accessible from both Tracker and Portfolio views.
-
-    Signals Applied panel is permanent in both AI panels — always visible
-    above buttons. setActiveBtn(type) and setPortActiveBtn(type) update the
-    respective panel and button highlight (sticky, no mouseleave reset).
-    Default is analyze on load and on view switch.
-    Portfolio has three buttons matching Tracker:
-    Analyze portfolio (analyze signals), Best value (bestValue signals),
-    Resale risk (resaleRisk signals). getPortfolioCtx() DRYs shared setup.
+    Filters, category selector, price chart, alert engine (per-category),
+    watchlist, portfolio, browser notifications.
     Tracker section order: Price Alerts → AI Panel → Scenario Simulation.
 
+  Layer 3 — AI (embedded inference via callClaude())
+    Routes to Vercel /api/analyze proxy (key server-side) or direct
+    Anthropic API call (key from input field for local/demo use).
+    Five tracker buttons + three portfolio buttons, all single-call except
+    Analyze which runs a two-call RAG pipeline: retrieval → grounded analysis.
+    All results display inline in the AI panel.
+
+    SIGNAL WEIGHTS — context-aware injection:
+    Eight user-configurable signals. SIGNAL_CONTEXTS maps each analysis type
+    to its relevant subset. buildSignalContext() serializes into prompt text.
+    buildChips() renders all active signals highlighted in the Signals Applied
+    card (blue for active signals, green for Buyer Intent toggle).
+    Signal Weights collapsible is global — at the bottom of the page,
+    accessible from both Tracker and Portfolio via "adjust weights ↓".
+    setActiveBtn() / setPortActiveBtn() update the card and button highlight
+    (sticky, no mouseleave reset). Default is analyze on load and view switch.
     formatText(t) formats all AI result text — paragraph breaks, line breaks,
-    **bold** markdown — applied to every result rendering call.
+    **bold** markdown — applied to every result rendering callsite.
+
+  Layer 4 — Simulation (forward price projection)
+    projectScenario() models base/optimistic/pessimistic price paths to
+    match day. Configurable: trajectory, team event, supply shock, confidence
+    band. findOptimalBuyDay() scans for the 7-day growth inflection point.
+    Analyze simulation and Scenario resale risk connect to Layer 3 —
+    AI interprets the projected spread and worst-case signals.
 
   PRODUCTION UPGRADE PATH:
     1. Replace generatePrices() + buildMatches() with fetch('/api/matches')
     2. ANTHROPIC_API_KEY → Vercel environment variable (remove UI input field)
     3. Add Twilio SMS / SendGrid for off-browser alert delivery
-    4. Replace RAG call with vector DB lookup over live news corpus
+    4. Replace RAG retrieval with vector DB over live news corpus
+    5. Add setInterval price tick for live alert evaluation in demo
 =============================================================================
 -->
 
@@ -271,7 +272,7 @@ select{font-size:12px;padding:5px 9px;border:0.5px solid var(--color-border-seco
   <div class="header-row">
     <div>
       <div class="header-title">FIFA World Cup 2026 — Ticket Intelligence</div>
-      <div class="header-sub">TRACKER + SCENARIOS + PORTFOLIO + AI &nbsp;·&nbsp; v18 &nbsp;·&nbsp; 16 HOST CITIES &nbsp;·&nbsp; JUN 11 2026</div>
+      <div class="header-sub">TRACKER + SCENARIOS + PORTFOLIO + AI &nbsp;·&nbsp; v19 &nbsp;·&nbsp; 16 HOST CITIES &nbsp;·&nbsp; JUN 11 2026</div>
     </div>
     <button class="notif-btn" onclick="toggleTray()" id="notifBtn">
       Alerts<span class="notif-badge" id="notifBadge" style="display:none">0</span>
@@ -734,13 +735,13 @@ function getMetrics(m){
    AI_BTN_IDS           — tracker button ID → analysis type map
    PORT_BTN_IDS         — portfolio button ID → analysis type map
    AI_BTN_LABELS        — display labels for each analysis type
-   getWeights()         — reads current values from all weight controls
-   buildSignalContext() — serializes relevant subset into prompt text
-   buildChips()         — builds signal chip HTML for a given analysis type
-   setActiveBtn()       — tracker: updates Signals Applied + button highlight
-   setPortActiveBtn()   — portfolio: updates Signals Applied + button highlight
+   getWeights()         — reads all eight weight control values
+   buildSignalContext() — serializes relevant signal subset into prompt text
+   buildChips()         — renders highlighted chip HTML for Signals Applied card
+   sigCardHTML()        — shared Signals Applied card renderer
+   setActiveBtn()       — tracker: updates card + button highlight (sticky)
+   setPortActiveBtn()   — portfolio: updates card + button highlight (sticky)
    openSignalWeights()  — opens Signal Weights collapsible and scrolls to it
-   formatText()         — formats AI result text (paragraphs, bold, line breaks)
    ============================================================================= */
 
 const SIGNAL_CONTEXTS={
@@ -871,7 +872,12 @@ function sendNotif(title,body,matchId){
   const n=new Notification(title,{body,tag:'wc2026-'+matchId,requireInteraction:true});
   n.onclick=()=>{window.focus();selectMatch(matchId);n.close();};
 }
-function testNotif(){sendNotif('WC2026 Alert — Test','Notifications are working correctly.',selectedMatch.id);}
+/* Test notification — unique tag each press so Chrome doesn't deduplicate;
+   requireInteraction:false so it auto-dismisses rather than staying pinned. */
+function testNotif(){
+  if(!('Notification'in window)||Notification.permission!=='granted')return;
+  new Notification('WC2026 Alert — Test',{body:'Notifications are working correctly.',tag:'wc2026-test-'+Date.now(),requireInteraction:false});
+}
 function toggleTray(){document.getElementById('notifTray').classList.toggle('visible');}
 
 /* =============================================================================
@@ -975,6 +981,7 @@ async function askPortfolioBestValue(){
   setAiBtnsDisabled(false);
 }
 
+/* Portfolio Resale Risk — resaleRisk signals; focuses on extreme-demand matches */
 async function askPortfolioRisk(){
   const {items,out}=getPortfolioCtx();
   if(!items.length)return;
@@ -1054,12 +1061,12 @@ function renderNotifTray(){
   const el=document.getElementById('notifList');
   if(!firedAlerts.length){el.innerHTML='<div class="empty-note">No alerts fired yet.</div>';return;}
   el.innerHTML=firedAlerts.map(a=>{
-    const m=ALL_MATCHES.find(x=>x.id===a.matchId),met=m?getMetrics(m):null;
+    const m=ALL_MATCHES.find(x=>x.id===a.matchId);
     const ac=a.cat||'Cat 3';
     return`<div class="notif-item"><div class="notif-text"><strong>${a.matchName}</strong> — ${condLabel(a.type,a.threshold,ac)}<br><span style="font-size:11px;color:var(--color-text-secondary)">${m?`${ac} resale $${resalePriceFor(m,ac).toLocaleString()} · face $${faceValFor(m,ac).toLocaleString()}`:''}</span><div class="notif-time">Fired at ${a.firedAt||'—'}</div></div><button class="notif-act" onclick="analyzeFromAlert(${a.matchId})">Analyze ↗</button></div>`;
   }).join('');
 }
-/* Clicking Analyze in the fired alert tray immediately runs full RAG analysis */
+/* analyzeFromAlert — fired alert tray shortcut, switches match and runs full RAG */
 function analyzeFromAlert(matchId){selectMatch(matchId);runAnalysis();}
 function renderAlertList(){
   const el=document.getElementById('alertList');
@@ -1190,7 +1197,7 @@ function renderAll(){renderMetrics();renderChart();}
 function selectMatch(id){
   selectedMatch=ALL_MATCHES.find(m=>m.id===id);
   renderMatchList();renderAll();
-  document.getElementById('ai-output').innerHTML='<span class="ai-placeholder">Click Analyze for a RAG-grounded recommendation, or open Simulation for forward price projection.</span>';
+  document.getElementById('ai-output').innerHTML='<span class="ai-placeholder">Select a match and click Analyze, Best value, or Resale risk — or open Scenario Simulation below for forward price projection.</span>';
   if(collState.sim)renderSimChart();
   setActiveBtn('analyze'); // reset Signals Applied panel on match change
 }
@@ -1282,6 +1289,12 @@ function renderSimChart(){
      · No key pasted → POST /api/analyze (Vercel proxy, key server-side)
      · Key pasted    → direct Anthropic API call (local dev / demo)
    PRODUCTION: remove the direct path, use proxy exclusively.
+
+   formatText(t) — applied to every AI result rendering callsite.
+   Converts 
+
+ → <p>, 
+ → <br>, **bold** → <strong>.
    ============================================================================= */
 async function callClaude(prompt){
   const key=document.getElementById('apiKey').value.trim();
@@ -1365,6 +1378,7 @@ async function runAnalysis(){
   const met=getMetrics(selectedMatch),days=daysUntil(selectedMatch.dayOffset);
   const cat=selectedCat==='All'?'Cat 3':selectedCat;
   const rp=resalePriceFor(selectedMatch,cat),fv=faceValFor(selectedMatch,cat);
+  const w=getWeights(); // cache once — used in signal context + result display
   const catContext=selectedCat==='All'
     ?`All categories — Cat 3 reference: face $${met.fvCat3}, resale $${met.resCat3}; full range $${met.fvCat4}–$${met.fvCat1} face / $${met.resCat4}–$${met.resCat1} resale`
     :`${selectedCat}: face $${fv}, resale $${rp}`;
@@ -1405,7 +1419,7 @@ Under 200 words.`);
     let bc='badge-wait',bt='WAIT';
     if(rec.toLowerCase().includes('buy now')){bc='badge-buy';bt='BUY NOW';}
     if(rec.toLowerCase().includes('urgent')){bc='badge-urgent';bt='URGENT';}
-    out.innerHTML=`<div class="rag-step done"><span style="font-size:13px">✓</span><span class="rag-step-lbl">Step 1 — Context retrieved</span><span class="rag-step-content"><span class="rag-ctx-tog" onclick="toggleRagCtx(this)">show retrieved context ▼</span><div class="rag-ctx-body" style="display:none">${rag}</div></span></div><div class="rag-step done"><span style="font-size:13px">✓</span><span class="rag-step-lbl">Step 2 — Analysis complete</span><span class="rag-step-content">All 8 signals applied · buyer intent: ${getWeights().buyerIntent}</span></div><div class="rec-badge ${bc}">${bt}</div><div class="signal-row"><span class="signal">${selectedMatch.stage}</span><span class="signal">${selectedCat}</span><span class="signal">markup +${met.markup}%</span><span class="signal">${days}d to match</span><span class="signal">${getWeights().buyerIntent}</span></div><div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${formatText(rec)}</div>`;
+    out.innerHTML=`<div class="rag-step done"><span style="font-size:13px">✓</span><span class="rag-step-lbl">Step 1 — Context retrieved</span><span class="rag-step-content"><span class="rag-ctx-tog" onclick="toggleRagCtx(this)">show retrieved context ▼</span><div class="rag-ctx-body" style="display:none">${rag}</div></span></div><div class="rag-step done"><span style="font-size:13px">✓</span><span class="rag-step-lbl">Step 2 — Analysis complete</span><span class="rag-step-content">All 8 signals applied · buyer intent: ${w.buyerIntent}</span></div><div class="rec-badge ${bc}">${bt}</div><div class="signal-row"><span class="signal">${selectedMatch.stage}</span><span class="signal">${selectedCat}</span><span class="signal">markup +${met.markup}%</span><span class="signal">${days}d to match</span><span class="signal">${w.buyerIntent}</span></div><div style="font-size:13px;line-height:1.7;color:var(--color-text-primary)">${formatText(rec)}</div>`;
   } catch(e){out.innerHTML=`<div class="rec-badge badge-wait">—</div><span style="color:var(--color-text-secondary);font-size:13px">${e.message}</span>`;}
   setAiBtnsDisabled(false);
 }

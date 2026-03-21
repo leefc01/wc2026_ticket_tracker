@@ -4,14 +4,6 @@ AI-powered price tracker and purchase advisor for World Cup 2026 tickets. Built 
 
 ---
 
-## Why I created this
-
-Like many good things, the idea started with a discussion over dinner: How could I keep track of World Cup ticket prices to find the best value? It was also the perfect excuse to teach my son Python.
-
-What began as a straightforward 'retrieve and alert' script evolved into a robust RAG (Retrieval-Augmented Generation) architecture for contextual analysis. This project serves as a hands-on sandbox for experimenting with AI patterns while solving a real-world data challenge.
-
----
-
 ## What it does
 
 - Tracks simulated resale price history across 18 matches (Group Stage through Final) at all 16 host stadiums
@@ -30,23 +22,28 @@ What began as a straightforward 'retrieve and alert' script evolved into a robus
 
 ```
 Layer 1 — Data (seeded → production: Playwright scraper)
-  generatePrices() + buildMatches()
+  generatePrices() + buildMatches() seed 18 matches with 180-day price history
   → swap with fetch('/api/matches') to connect a live scraper
 
 Layer 2 — Application (browser, stateful JS)
-  Filters · Category selector · Chart · Alert engine
-  Watchlist · Portfolio · Scenario simulation · Notifications
+  Filters · Category selector · Price chart · Alert engine (per-category)
+  Watchlist · Portfolio · Browser notifications
+  Tracker section order: Price Alerts → AI Panel → Scenario Simulation
 
-Layer 3 — AI (embedded inference)
-  callClaude() routes to:
-    · Vercel: POST /api/analyze (key server-side, never in browser)
-    · Local:  direct Anthropic API call (key from input field)
+Layer 3 — AI (embedded inference via callClaude())
+  Routes to Vercel /api/analyze proxy (key server-side, never in browser)
+  or direct Anthropic API call (key from input field for local/demo use)
+  Five tracker buttons + three portfolio buttons — all route through callClaude()
   Analyze: two sequential calls — RAG retrieval → grounded analysis
-  All other AI buttons: single call, results displayed in AI panel
+  All other buttons: single call, results displayed inline in AI panel
+  Eight configurable signals injected per analysis type via SIGNAL_CONTEXTS
+  formatText() formats all AI results — paragraphs, line breaks, bold markdown
 
-Layer 4 — Simulation
-  Forward price projection: base / best / worst case scenarios
+Layer 4 — Simulation (forward price projection)
+  projectScenario() models base / optimistic / pessimistic paths to match day
   Configurable: trajectory, team event, supply shock, confidence band
+  findOptimalBuyDay() scans for the 7-day growth inflection point
+  Analyze simulation and Scenario resale risk connect to Layer 3 for interpretation
 ```
 
 ---
@@ -70,7 +67,7 @@ Users configure eight signals that inject into each AI analysis. Signals are con
 
 ## Running locally
 
-1. Download `index.html` (rename from `wc2026_ticket_tracker_v18.html`)
+1. Download `index.html` (rename from `wc2026_ticket_tracker_v19.html`)
 2. Open in any modern browser
 3. Paste your Anthropic API key (`sk-ant-...`) into the key field at the top
 4. All features work — AI buttons call the Anthropic API directly from the browser
@@ -85,7 +82,7 @@ No build step, no dependencies, no server required for local use.
 
 ```
 your-project/
-  index.html          ← rename the v18 HTML file to this
+  index.html          ← rename the v19 HTML file to this
   api/
     analyze.js        ← Vercel serverless proxy (unchanged since v8)
   README.md
@@ -134,6 +131,17 @@ On Vercel, `callClaude()` auto-routes to `POST /api/analyze` instead of calling 
 ---
 
 ## Changelog
+
+**v19**
+- Header comment updated: "THREE-LAYER ARCHITECTURE" → "FOUR-LAYER ARCHITECTURE"; Layer 3 description updated to reflect all eight AI buttons routing through `callClaude()`; Layer 4 (Simulation) added with full description; production upgrade path gains item 5 (price tick for live alert evaluation)
+- README architecture section updated to match — all four layers documented with current implementation details
+- `testNotif()` fixed: unique `Date.now()` tag suffix prevents Chrome deduplication; `requireInteraction:false` so test notification auto-dismisses rather than staying pinned
+- `renderNotifTray()` cleanup: unused `met` variable removed — tray now calls `resalePriceFor()` and `faceValFor()` directly (same fix applied to `checkAlerts()` in v17)
+- `runAnalysis()`: `getWeights()` now cached once as `w` at function start; `w.buyerIntent` replaces two inline `getWeights().buyerIntent` calls
+- `selectMatch()` placeholder text updated to mention all three primary AI buttons
+- `askPortfolioRisk()` doc comment added — was the only portfolio handler without one
+- Signal Weights JS section comment: `formatText()` moved to AI Layer comment where it belongs; `sigCardHTML()` added to the index
+- `analyzeFromAlert` comment improved for clarity
 
 **v18**
 - `askBestValue()` sort fixed — was calling removed `resalePrice()` wrapper, causing a `ReferenceError`; now uses `resalePriceFor(a,'Cat 3')` directly
