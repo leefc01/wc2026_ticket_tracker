@@ -1,6 +1,7 @@
 # FIFA World Cup 2026 — Ticket Intelligence
 
 AI-powered price tracker and purchase advisor for World Cup 2026 tickets. Built as a prototype demonstrating a multi-layer AI application architecture using the Anthropic Claude API.
+<img width="1462" height="960" alt="image" src="https://github.com/user-attachments/assets/26a99d28-8a2e-42f6-99c5-c117f226a5f3" />
 
 ---
 
