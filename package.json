@@ -1,0 +1,20 @@
+{
+  "name": "wc2026-ticket-tracker",
+  "version": "1.0.0",
+  "description": "FIFA World Cup 2026 Ticket Intelligence Tracker",
+  "main": "index.html",
+  "scripts": {
+    "test": "echo \"No tests specified\""
+  },
+  "keywords": [
+    "fifa",
+    "world-cup",
+    "2026",
+    "ticket-tracker"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@vercel/analytics": "^2.0.1"
+  }
+}
